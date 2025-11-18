@@ -43,7 +43,7 @@ MAP_STRINGS = [
     "W............WW............W",
     "W.WWWW.WWWWW.WW.WWWWW.WWWW.W",
     "W.WWWW.WWWWW.WW.WWWWW.WWWW.W",
-    "WO..WW................WW..OW",
+    "WO..WW.......  .......WW..OW",
     "WWW.WW.WW.WWWWWWWW.WW.WW.WWW",
     "WWW.WW.WW.WWWWWWWW.WW.WW.WWW",
     "W......WW....WW....WW......W",

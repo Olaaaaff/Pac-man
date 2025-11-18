@@ -37,7 +37,7 @@ def draw_map():
                 pygame.draw.circle(screen, WHITE, (center_x, center_y), 6)
 
 # 3. 建立遊戲物件
-player = Player(13, 23)
+player = Player(13.5, 23)
 
 # 建立四隻鬼，設定不同的顏色與 AI 模式
 blinky = Ghost(13, 14, RED, ai_mode="CHASE_BLINKY", scatter_target=(26, 1))
