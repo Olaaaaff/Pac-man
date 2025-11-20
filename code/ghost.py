@@ -15,7 +15,7 @@ class Ghost:
         self.radius = TILE_SIZE // 2 - 2
         
         self.color = color
-        self.default_speed = 2
+        self.default_speed = SPEED
         self.speed = self.default_speed
         self.direction = (1, 0)
         self.all_directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
@@ -58,7 +58,7 @@ class Ghost:
         self.is_frightened = False
         self.is_eaten = True
         self.current_ai_mode = "GO_HOME"
-        self.speed = 4 
+        self.speed = 2*SPEED 
         self.target = self.home_pos 
 
     def respawn(self):
@@ -86,7 +86,7 @@ class Ghost:
             self.is_frightened = False
             if self.current_ai_mode not in ["GO_HOME", "EXIT_HOUSE", "WAITING"]:
                 self.current_ai_mode = self.ai_mode
-            self.speed = self.default_speed
+            #self.speed = self.default_speed
 
     def get_distance(self, pos1, pos2):
         return math.hypot(pos1[0] - pos2[0], pos1[1] - pos2[1])
@@ -104,8 +104,9 @@ class Ghost:
             next_g_x = int(self.grid_x + move_dir[0])
             next_g_y = int(self.grid_y + move_dir[1])
 
-            if 0 <= next_g_y < len(game_map) and 0 <= next_g_x < len(game_map[0]):
-                tile = game_map[next_g_y][next_g_x]
+            if 0 <= next_g_y < len(game_map) :
+                check_x = next_g_x % len(game_map[0])
+                tile = game_map[next_g_y][check_x]
                 
                 # 門的通行邏輯
                 if tile == "W":
@@ -173,7 +174,11 @@ class Ghost:
             
             # WAITING 狀態不執行後面的移動邏輯
             return
-        
+        # 位置整數保證
+        if abs(self.pixel_x - round(self.pixel_x)) < 0.1:
+            self.pixel_x = round(self.pixel_x)
+        if abs(self.pixel_y - round(self.pixel_y)) < 0.1:
+            self.pixel_y = round(self.pixel_y)
         # 正常的移動狀態
         is_centered_x = (self.pixel_x - (TILE_SIZE // 2)) % TILE_SIZE == 0
         is_centered_y = (self.pixel_y - (TILE_SIZE // 2)) % TILE_SIZE == 0
@@ -181,6 +186,7 @@ class Ghost:
         if is_centered_x and is_centered_y:
             self.grid_x = (self.pixel_x - (TILE_SIZE // 2)) // TILE_SIZE
             self.grid_y = (self.pixel_y - (TILE_SIZE // 2)) // TILE_SIZE
+
 
             if self.current_ai_mode == "GO_HOME" and (self.grid_x, self.grid_y) == self.home_pos:
                 self.respawn()
@@ -190,6 +196,9 @@ class Ghost:
                 if self.grid_y <= 11:
                     self.current_ai_mode = self.ai_mode # 切換回正常追蹤模式
                     self.direction = random.choice([(-1, 0), (1, 0)])    #隨機往左往右
+
+            if not self.is_frightened and self.current_ai_mode not in ["GO_HOME", "EXIT_HOUSE", "WAITING"]:
+                self.speed = self.default_speed
 
             valid_directions = self.get_valid_directions(game_map, all_ghosts)
 
@@ -250,6 +259,8 @@ class Ghost:
         
         self.pixel_x += self.direction[0] * self.speed
         self.pixel_y += self.direction[1] * self.speed
-        
-        if self.pixel_x < 0: self.pixel_x = SCREEN_WIDTH
-        elif self.pixel_x > SCREEN_WIDTH: self.pixel_x = 0
+            
+        if self.pixel_x < -TILE_SIZE // 2: 
+            self.pixel_x = SCREEN_WIDTH + TILE_SIZE // 2
+        elif self.pixel_x > SCREEN_WIDTH + TILE_SIZE // 2: 
+            self.pixel_x = -TILE_SIZE // 2

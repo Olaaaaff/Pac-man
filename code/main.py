@@ -150,6 +150,5 @@ while running:
         screen.blit(win_text, text_rect)
 
     pygame.display.flip() 
-    clock.tick(60) 
 
 pygame.quit()

@@ -9,7 +9,7 @@ class Player:
         self.pixel_x = (self.grid_x * TILE_SIZE) + (TILE_SIZE // 2)
         self.pixel_y = (self.grid_y * TILE_SIZE) + (TILE_SIZE // 2)
         self.radius = TILE_SIZE // 2 - 2
-        self.speed = 2
+        self.speed = SPEED
         self.direction = (0, 0)
         self.next_direction = (0, 0)
         self.score = 0
@@ -55,7 +55,7 @@ class Player:
         def is_wall(gx, gy):
             if 0 <= gy < len(game_map) and 0 <= gx < len(game_map[0]):
                 tile = game_map[gy][gx]
-                return tile == "W" or tile == "=" # <--- 修改這裡
+                return tile == "W" or tile == "="
             return False
 
         # 轉彎邏輯 (分軸檢查) 

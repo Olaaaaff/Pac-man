@@ -7,6 +7,7 @@ TILE_SIZE = 20
 SCREEN_WIDTH = 28 * TILE_SIZE
 SCREEN_HEIGHT = 36 * TILE_SIZE
 FRIGHTENED_DURATION = 7000 # 7 秒
+SPEED = 2 #玩家與鬼的基本速度
 
 # 顏色定義
 BLACK = (0, 0, 0)
@@ -19,7 +20,6 @@ CYAN = (0, 255, 255)
 ORANGE = (255, 184, 82)
 GREY = (150, 150, 150)
 FRIGHTENED_BLUE = (0, 0, 139)
-
 # 字型設定
 # 初始化字型模組
 pygame.font.init()
