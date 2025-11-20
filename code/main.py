@@ -58,6 +58,10 @@ game_state = "PLAYING"  # "PLAYING", "GAME_OVER", "WIN"
 frightened_mode = False
 frightened_start_time = 0
 
+global_ghost_mode = "SCATTER"  # 遊戲一開始先散開
+mode_timer = 0
+last_mode_switch_time = pygame.time.get_ticks()
+
 # * 主迴圈開始
 while running:
     dt = clock.tick(60)
@@ -70,14 +74,48 @@ while running:
 
     # 遊戲邏輯更新 
     if game_state == "PLAYING":
+
+        current_time = pygame.time.get_ticks()
         
-        # 1. Frightened (受驚) 模式計時器
+        if not frightened_mode:
+            time_passed = current_time - last_mode_switch_time
+            
+            if global_ghost_mode == "SCATTER" and time_passed > SCATTER_DURATION:
+                global_ghost_mode = "CHASE"
+                last_mode_switch_time = current_time
+                print("切換模式：開始追逐 (CHASE)")
+                # 讓鬼反向移動 (經典 Pac-Man 機制)
+                for ghost in ghosts:
+                    if ghost.current_ai_mode not in ["GO_HOME", "EXIT_HOUSE", "WAITING"]:
+                        ghost.direction = (ghost.direction[0] * -1, ghost.direction[1] * -1)
+
+            elif global_ghost_mode == "CHASE" and time_passed > CHASE_DURATION:
+                global_ghost_mode = "SCATTER"
+                last_mode_switch_time = current_time
+                print("切換模式：散開 (SCATTER)")
+                # 讓鬼反向移動
+                for ghost in ghosts:
+                    if ghost.current_ai_mode not in ["GO_HOME", "EXIT_HOUSE", "WAITING"]:
+                        ghost.direction = (ghost.direction[0] * -1, ghost.direction[1] * -1)
+        
+        # 更新所有鬼的狀態 (將全域模式套用到每隻鬼身上)
+        for ghost in ghosts:
+            # 如果鬼處於特殊狀態 (回家、出門、等待、被吃、驚嚇)，則不覆蓋它的模式
+            if (not ghost.is_frightened and not ghost.is_eaten and 
+                ghost.current_ai_mode not in ["GO_HOME", "EXIT_HOUSE", "WAITING"]):
+                
+                if global_ghost_mode == "SCATTER":
+                    ghost.current_ai_mode = "SCATTER"
+                elif global_ghost_mode == "CHASE":
+                    ghost.current_ai_mode = ghost.ai_mode  # 切換回它原本的追逐個性 (CHASE_BLINKY 等)
+        
+        # Frightened (受驚) 模式計時器
         if frightened_mode:
-            current_time = pygame.time.get_ticks()
             if current_time - frightened_start_time > FRIGHTENED_DURATION:
                 frightened_mode = False
                 for ghost in ghosts:
                     ghost.end_frightened()
+                last_mode_switch_time = current_time
 
         # Player 更新
         # 把加分統一在主程式

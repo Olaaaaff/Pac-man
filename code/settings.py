@@ -8,6 +8,8 @@ SCREEN_WIDTH = 28 * TILE_SIZE
 SCREEN_HEIGHT = 36 * TILE_SIZE
 FRIGHTENED_DURATION = 7000 # 7 秒
 SPEED = 2 #玩家與鬼的基本速度
+SCATTER_DURATION = 7000   # 散開 7 秒
+CHASE_DURATION = 20000    # 追逐 20 秒
 
 # 顏色定義
 BLACK = (0, 0, 0)
@@ -20,6 +22,7 @@ CYAN = (0, 255, 255)
 ORANGE = (255, 184, 82)
 GREY = (150, 150, 150)
 FRIGHTENED_BLUE = (0, 0, 139)
+
 # 字型設定
 # 初始化字型模組
 pygame.font.init()
@@ -61,8 +64,8 @@ MAP_STRINGS = [
     "WWW.WW.WW.WWWWWWWW.WW.WW.WWW",
     "WWW.WW.WW.WWWWWWWW.WW.WW.WWW",
     "W......WW....WW....WW......W",
-    "W.WWWWWWWWWW.WW.WWWWWWWWWW.W",
-    "W.WWWWWWWWWW.WW.WWWWWWWWWW.W",
+    "W.WWWW.WWWWW.WW.WWWWW.WWWW.W",
+    "W.WWWW.WWWWW.WW.WWWWW.WWWW.W",
     "W..........................W",
     "WWWWWWWWWWWWWWWWWWWWWWWWWWWW",
     " ", " ", " ", " ", " "
