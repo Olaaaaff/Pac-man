@@ -19,27 +19,26 @@ GAME_OVER_FONT = pygame.font.Font(None, 64)
 WIN_FONT = pygame.font.Font(None, 64)
 
 # 2. 繪製地圖的函式
-# (因為地圖繪製直接畫在 screen 上，放在主程式比較方便)
 def draw_map():
     for y, row in enumerate(GAME_MAP):
         for x, char in enumerate(row):
             rect_x = x * TILE_SIZE
             rect_y = y * TILE_SIZE
-            if char == "W":
+            if char == "W":     #牆壁
                 pygame.draw.rect(screen, BLUE, (rect_x, rect_y, TILE_SIZE, TILE_SIZE))
-            elif char == ".":
+            elif char == ".":   #豆豆
                 center_x = rect_x + TILE_SIZE // 2
                 center_y = rect_y + TILE_SIZE // 2
                 pygame.draw.circle(screen, WHITE, (center_x, center_y), 2)
-            elif char == "O":
+            elif char == "O":   #大力丸
                 center_x = rect_x + TILE_SIZE // 2
                 center_y = rect_y + TILE_SIZE // 2
                 pygame.draw.circle(screen, WHITE, (center_x, center_y), 6)
 
-# 3. 建立遊戲物件
+# 3. 建立遊戲物件(讓他置中)
 player = Player(13.5, 23)
 
-# 建立四隻鬼，設定不同的顏色與 AI 模式
+# 建立四隻鬼，設定不同的顏色與 AI 模式、等待時間
 blinky = Ghost(13, 14, RED, ai_mode="CHASE_BLINKY", scatter_target=(26, 1))
 pinky = Ghost(14, 14, PINK, ai_mode="CHASE_PINKY", scatter_target=(1, 1))
 inky = Ghost(12, 14, CYAN, ai_mode="CHASE_INKY", scatter_target=(26, 29))
@@ -51,7 +50,7 @@ ghosts = [blinky, pinky, inky, clyde]
 total_pellets = 0
 for row in GAME_MAP:
     for char in row:
-        if char == '.' or char == 'O':
+        if char == '.':     #只算豆子 大力丸不是通關條件
             total_pellets += 1
 print(f"遊戲開始！總豆子數：{total_pellets}")
 
@@ -84,12 +83,14 @@ while running:
                     ghost.end_frightened()
 
         # 2. Player 更新
+        # 把加分統一在主程式
         player_status = player.update(GAME_MAP)
         
         if player_status == "ATE_PELLET":
             total_pellets -= 1
-        elif player_status == "ATE_POWER_PELLET":
-            total_pellets -= 1
+            player.score += PELLELETS_POINT 
+        elif player_status == "ATE_POWER_PELLET":   #吃到大力丸進入驚嚇模式
+            player.score += POWER_PELLET_POINT
             frightened_mode = True
             frightened_start_time = pygame.time.get_ticks()
             for ghost in ghosts:
@@ -115,9 +116,9 @@ while running:
             if distance < collision_distance:
                 if ghost.is_frightened:
                     # 吃鬼
-                    points = ghost.eat()
-                    player.score += points
-                elif not ghost.is_eaten:
+                    ghost.eat()    
+                    player.score += GHOST_POINT
+                elif not ghost.is_eaten:    #防止玩家碰到已經被吃掉，正在跑回重生的鬼時誤觸發遊戲結束
                     # 被鬼抓
                     game_state = "GAME_OVER"
                     print("碰撞發生！遊戲結束。") 
@@ -131,7 +132,7 @@ while running:
         ghost.draw(screen)
 
     # 繪製分數
-    score_text = SCORE_FONT.render(f"SCORE: {player.score}", True, WHITE)
+    score_text = SCORE_FONT.render(f"SCORE: {int(player.score)}", True, WHITE)      # True: 開啟 anti-aliasing (反鋸齒)
     screen.blit(score_text, (10, 32 * TILE_SIZE))
     
     # 繪製 GAME OVER 或 WIN

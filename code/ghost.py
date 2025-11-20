@@ -28,6 +28,7 @@ class Ghost:
         self.is_frightened = False
         self.is_eaten = False
 
+
     def draw(self, surface):
         if self.is_eaten:
             eye_radius = self.radius // 2
@@ -47,7 +48,6 @@ class Ghost:
         self.current_ai_mode = "GO_HOME"
         self.speed = 4 
         self.target = self.home_pos 
-        return 200 
 
     def respawn(self):
         print("一隻鬼重生了！")

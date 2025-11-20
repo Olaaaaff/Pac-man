@@ -14,7 +14,7 @@ class Player:
         self.next_direction = (0, 0)
         self.score = 0
 
-    def draw(self, surface):
+    def draw(self, surface):    #先畫一個黃色圓形當小精靈
         pygame.draw.circle(surface, YELLOW, (self.pixel_x, self.pixel_y), self.radius)
 
     def handle_input(self, event):
@@ -46,11 +46,9 @@ class Player:
             current_tile = game_map[curr_grid_y][curr_grid_x]
             if current_tile == ".":
                 game_map[curr_grid_y][curr_grid_x] = " "
-                self.score += 10
                 return "ATE_PELLET"
             elif current_tile == "O":
                 game_map[curr_grid_y][curr_grid_x] = " "
-                self.score += 50
                 return "ATE_POWER_PELLET"
 
         # --- 3. 轉彎邏輯 (分軸檢查) ---
