@@ -19,10 +19,14 @@ class Player:
 
     def handle_input(self, event):
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_UP: self.next_direction = (0, -1)
-            elif event.key == pygame.K_DOWN: self.next_direction = (0, 1)
-            elif event.key == pygame.K_LEFT: self.next_direction = (-1, 0)
-            elif event.key == pygame.K_RIGHT: self.next_direction = (1, 0)
+            if event.key == pygame.K_UP:
+                self.next_direction = (0, -1)
+            elif event.key == pygame.K_DOWN:
+                self.next_direction = (0, 1)
+            elif event.key == pygame.K_LEFT: 
+                self.next_direction = (-1, 0)
+            elif event.key == pygame.K_RIGHT:
+                self.next_direction = (1, 0)
 
     def update(self, game_map):
         """ 更新玩家狀態。返回 'ATE_PELLET', 'ATE_POWER_PELLET', 或 None """
@@ -102,7 +106,9 @@ class Player:
             self.pixel_y += self.direction[1] * self.speed
 
         # 隧道處理 (超出邊界後瞬間移動到另一邊)
-        if self.pixel_x < -TILE_SIZE//2: self.pixel_x = SCREEN_WIDTH + TILE_SIZE//2
-        elif self.pixel_x > SCREEN_WIDTH + TILE_SIZE//2: self.pixel_x = -TILE_SIZE//2
+        if self.pixel_x < -TILE_SIZE//2: 
+            self.pixel_x = SCREEN_WIDTH + TILE_SIZE//2
+        elif self.pixel_x > SCREEN_WIDTH + TILE_SIZE//2: 
+            self.pixel_x = -TILE_SIZE//2
         
         return None

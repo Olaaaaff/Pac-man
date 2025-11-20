@@ -4,8 +4,10 @@ import pygame
 #* 遊戲架構有關常數
 # 遊戲視窗
 TILE_SIZE = 20
+MAP_HEIGHT = 36 * TILE_SIZE
+LOG_HEIGHT = 140
 SCREEN_WIDTH = 28 * TILE_SIZE
-SCREEN_HEIGHT = 36 * TILE_SIZE
+SCREEN_HEIGHT = MAP_HEIGHT + LOG_HEIGHT
 
 # 顏色定義
 BLACK = (0, 0, 0)
@@ -25,6 +27,7 @@ pygame.font.init()
 SCORE_FONT = pygame.font.Font(None, 24)
 GAME_OVER_FONT = pygame.font.Font(None, 64)
 WIN_FONT = pygame.font.Font(None, 64)
+LOG_FONT = pygame.font.Font(None, 20)
 
 #* 運作常數
 
@@ -40,6 +43,7 @@ POWER_PELLET_POINT = 50
 GHOST_POINT = 200
 
 # 遊戲狀態常數 (Game States) 
+GAME_STATE_START = "START"
 GAME_STATE_PLAYING = "PLAYING"
 GAME_STATE_GAME_OVER = "GAME_OVER"
 GAME_STATE_WIN = "WIN"

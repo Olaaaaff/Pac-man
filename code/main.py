@@ -13,6 +13,33 @@ screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Pygame Pac-Man")
 clock = pygame.time.Clock()
 
+# --- 日誌系統 ---
+game_logs = [] # 儲存字串的列表
+MAX_LOGS = 7   # 最多顯示幾行
+
+def log_message(message):
+    """ 新增一條訊息到日誌區，並保持長度限制 """
+    # 加上時間戳記 (秒數)
+    ticks = pygame.time.get_ticks() // 1000
+    formatted_msg = f"[{ticks}s] {message}"
+    print(formatted_msg) # 保留終端機輸出方便除錯
+    game_logs.append(formatted_msg)
+    if len(game_logs) > MAX_LOGS:
+        game_logs.pop(0) # 移除最舊的
+
+def draw_logs(surface):
+    """ 繪製底部日誌區 """
+    # 1. 畫背景框 (在原本的地圖下方)
+    log_area_rect = pygame.Rect(0, MAP_HEIGHT, SCREEN_WIDTH, LOG_HEIGHT)
+    pygame.draw.rect(surface, (20, 20, 20), log_area_rect) # 深灰色背景
+    pygame.draw.line(surface, WHITE, (0, MAP_HEIGHT), (SCREEN_WIDTH, MAP_HEIGHT), 2) # 分隔線
+
+    # 2. 繪製文字
+    start_y = MAP_HEIGHT + 10
+    for i, msg in enumerate(game_logs):
+        text_surf = LOG_FONT.render(msg, True, WHITE)
+        surface.blit(text_surf, (10, start_y + i * 18)) # 每行間距 18
+
 # 繪製地圖的函式
 def draw_map():
     for y, row in enumerate(GAME_MAP):
@@ -50,31 +77,27 @@ path_inky = [(21, 26), (26, 26), (26, 29), (21, 29)]
 path_clyde = [(6, 26), (1, 26), (1, 29), (6, 29)]
 
 # 建立四隻鬼，設定不同的顏色與 AI 模式、等待時間
-blinky = Ghost(13, 14, RED, ai_mode=AI_CHASE_BLINKY, scatter_path=path_blinky, in_house=True, delay=0)
-pinky = Ghost(14, 14, PINK, ai_mode=AI_CHASE_PINKY, scatter_path=path_pinky, in_house=True, delay=3000)
-inky = Ghost(12, 14, CYAN, ai_mode=AI_CHASE_INKY, scatter_path=path_inky, in_house=True, delay=6000)
-clyde = Ghost(15, 14, ORANGE, ai_mode=AI_CHASE_CLYDE, scatter_path=path_clyde, in_house=True, delay=9000)
+blinky = Ghost(13, 14, RED, ai_mode=AI_CHASE_BLINKY, scatter_path=path_blinky, in_house=True, delay=0, on_log=log_message)
+pinky = Ghost(14, 14, PINK, ai_mode=AI_CHASE_PINKY, scatter_path=path_pinky, in_house=True, delay=3000, on_log=log_message)
+inky = Ghost(12, 14, CYAN, ai_mode=AI_CHASE_INKY, scatter_path=path_inky, in_house=True, delay=6000, on_log=log_message)
+clyde = Ghost(15, 14, ORANGE, ai_mode=AI_CHASE_CLYDE, scatter_path=path_clyde, in_house=True, delay=9000, on_log=log_message)
 
 
 ghosts = [blinky, pinky, inky, clyde]
 
 # 計算總豆子數 (勝利條件)
-total_pellets = 0
-for row in GAME_MAP:
-    for char in row:
-        if char == TILE_PELLET:     #只算豆子 大力丸不是通關條件
-            total_pellets += 1
-print(f"遊戲開始！總豆子數：{total_pellets}")
+total_pellets = sum(row.count(TILE_PELLET) for row in GAME_MAP)
+log_message(f"Game Loaded! Total pellets:{total_pellets}")
+log_message("Press ARROW KEYS to start...")
 
 # 遊戲主迴圈變數
 running = True
-game_state = GAME_STATE_PLAYING  # GAME_STATE_PLAYING, GAME_STATE_GAME_OVER, GAME_STATE_WIN
+game_state = GAME_STATE_START
 frightened_mode = False
 frightened_start_time = 0
 
 global_ghost_mode = MODE_SCATTER  # 遊戲一開始先散開
-mode_timer = 0
-last_mode_switch_time = pygame.time.get_ticks()
+last_mode_switch_time = 0
 
 # * 主迴圈開始
 while running:
@@ -83,7 +106,14 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        if game_state == GAME_STATE_PLAYING:
+        if game_state == GAME_STATE_START:
+            if event.type == pygame.KEYDOWN:
+                if event.key in [pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT]:
+                    game_state = GAME_STATE_PLAYING
+                    last_mode_switch_time = pygame.time.get_ticks() # 開始計時
+                    log_message("Game Start!")
+                    player.handle_input(event) # 讓第一下按鍵直接生效
+        elif game_state == GAME_STATE_PLAYING:
             player.handle_input(event)
 
     # 遊戲邏輯更新 
@@ -97,28 +127,32 @@ while running:
             if global_ghost_mode == MODE_SCATTER and time_passed > SCATTER_DURATION:
                 global_ghost_mode = MODE_CHASE
                 last_mode_switch_time = current_time
-                print("切換模式：開始追逐 (CHASE)")
+                log_message(">> Mode Switch: CHASE")
 
             elif global_ghost_mode == MODE_CHASE and time_passed > CHASE_DURATION:
                 global_ghost_mode = MODE_SCATTER
                 last_mode_switch_time = current_time
-                print("切換模式：散開 (SCATTER)")
+                log_message(">> Mode Switch: SCATTER")
         
         # 更新所有鬼的狀態 (將全域模式套用到每隻鬼身上)
+        # Inky 需要 Blinky 的位置來計算夾擊
+        blinky_pos_for_inky = (blinky.grid_x, blinky.grid_y)
         for ghost in ghosts:
             # 如果鬼處於特殊狀態 (回家、出門、等待、被吃、驚嚇)，則不覆蓋它的模式
-            if (not ghost.is_frightened and not ghost.is_eaten and 
-                ghost.current_ai_mode not in [MODE_GO_HOME, MODE_EXIT_HOUSE , MODE_WAITING ]):
+            if (not ghost.is_frightened and not ghost.is_eaten and ghost.current_ai_mode not in [MODE_GO_HOME, MODE_EXIT_HOUSE , MODE_WAITING ]):
                 
                 if global_ghost_mode == MODE_SCATTER:
                     ghost.current_ai_mode = MODE_SCATTER
                 elif global_ghost_mode == MODE_CHASE:
                     ghost.current_ai_mode = ghost.ai_mode  # 切換回它原本的追逐個性 (CHASE_BLINKY 等)
+
+            ghost.update(GAME_MAP, player, ghosts, dt, global_ghost_mode, blinky_pos_for_inky)
         
         # Frightened (受驚) 模式計時器
         if frightened_mode:
             if current_time - frightened_start_time > FRIGHTENED_DURATION:
                 frightened_mode = False
+                log_message("Frightened mode ended. Ghosts normal.")
                 for ghost in ghosts:
                     ghost.end_frightened()
                 last_mode_switch_time = current_time
@@ -134,17 +168,14 @@ while running:
             player.score += POWER_PELLET_POINT
             frightened_mode = True
             frightened_start_time = pygame.time.get_ticks()
+            log_message("Power Pellet eaten! Ghosts Frightened!")
             for ghost in ghosts:
                 ghost.start_frightened()
         
         # 勝利檢查
         if total_pellets <= 0:
-            game_state = GAME_STATE_WIN
-
-        # 鬼的更新 (Inky 需要 Blinky 的位置來計算夾擊)
-        blinky_pos_for_inky = (blinky.grid_x, blinky.grid_y)
-        for ghost in ghosts:
-            ghost.update(GAME_MAP, player, ghosts, dt, global_ghost_mode, blinky_pos_for_inky) 
+            game_state = GAME_STATE_WIN 
+            log_message("VICTORY! All pellets cleared!")
         
         # 碰撞偵測
         for ghost in ghosts:
@@ -162,36 +193,43 @@ while running:
                 elif not ghost.is_eaten:    # 防止玩家碰到已經被吃掉，正在跑回重生的鬼時誤觸發遊戲結束
                     # 被鬼抓
                     game_state = GAME_STATE_GAME_OVER
-                    print("碰撞發生！遊戲結束。") 
+                    log_message("Ghost collision! Game Over.")
 
     # 畫面繪製 
     screen.fill(BLACK) 
     draw_map()
+
     player.draw(screen)
-    
     for ghost in ghosts:
         ghost.draw(screen)
 
+    draw_logs(screen)
+
     # 繪製分數
     score_text = SCORE_FONT.render(f"SCORE: {int(player.score)}", True, WHITE)      # True: 開啟 anti-aliasing (反鋸齒)
-    screen.blit(score_text, (10, 32 * TILE_SIZE))
-    
-    # 繪製 GAME OVER 或 WIN
-    if game_state == GAME_STATE_GAME_OVER:
-        game_over_text = GAME_OVER_FONT.render("GAME OVER", True, RED)
-        text_rect = game_over_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
-        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 150))
-        screen.blit(overlay, (0, 0))
-        screen.blit(game_over_text, text_rect)
+    screen.blit(score_text, (10, MAP_HEIGHT - 25))
+
+    # 繪製中心文字 (開始、勝利、失敗)
+    center_pos = (SCREEN_WIDTH // 2, MAP_HEIGHT // 2)
+    if game_state == GAME_STATE_START:
+        start_text = WIN_FONT.render("READY!", True, YELLOW)
+        hint_text = SCORE_FONT.render("Press ARROW KEYS to Start", True, WHITE)
+        
+        r1 = start_text.get_rect(center=center_pos)
+        r2 = hint_text.get_rect(center=(center_pos[0], center_pos[1] + 40))
+        
+        screen.blit(start_text, r1)
+        screen.blit(hint_text, r2)
+
+    elif game_state == GAME_STATE_GAME_OVER:
+        text = GAME_OVER_FONT.render("GAME OVER", True, RED)
+        rect = text.get_rect(center=center_pos)
+        screen.blit(text, rect)
     
     elif game_state == GAME_STATE_WIN:
-        win_text = WIN_FONT.render("YOU WIN!", True, YELLOW)
-        text_rect = win_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
-        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 150))
-        screen.blit(overlay, (0, 0))
-        screen.blit(win_text, text_rect)
+        text = WIN_FONT.render("YOU WIN!", True, YELLOW)
+        rect = text.get_rect(center=center_pos)
+        screen.blit(text, rect)
 
     pygame.display.flip() 
 

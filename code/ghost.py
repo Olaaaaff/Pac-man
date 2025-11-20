@@ -5,7 +5,7 @@ import math
 from settings import *
 
 class Ghost:
-    def __init__(self, grid_x, grid_y, color, ai_mode, scatter_path=None, in_house=False,delay=0):
+    def __init__(self, grid_x, grid_y, color, ai_mode, scatter_path=None, in_house=False,delay=0, on_log=None):
         self.grid_x = grid_x
         self.grid_y = grid_y
         self.home_pos = (grid_x, grid_y)
@@ -45,6 +45,7 @@ class Ghost:
         self.is_frightened = False
         self.is_eaten = False
 
+        self.on_log = on_log
 
     def draw(self, surface):
         if self.is_eaten:
@@ -59,7 +60,8 @@ class Ghost:
             pygame.draw.circle(surface, draw_color, (self.pixel_x, self.pixel_y), self.radius)
 
     def eat(self):
-        print("一隻鬼被吃掉了！")
+        if self.on_log:
+            self.on_log(f"[{self.ai_mode}] Ghost eaten! Returning home.")
         self.is_frightened = False
         self.is_eaten = True
         self.current_ai_mode = MODE_GO_HOME
@@ -78,7 +80,8 @@ class Ghost:
             self.pixel_y -= remainder_y
 
     def respawn(self):
-        print("一隻鬼重生了！準備出門")
+        if self.on_log:
+            self.on_log(f"[{self.ai_mode}] Ghost respawned! Exiting house.")
         self.is_eaten = False
         self.current_ai_mode = MODE_EXIT_HOUSE 
         self.speed = self.default_speed
@@ -247,9 +250,12 @@ class Ghost:
             
             # *設定AI模式
             # 共通模式 離家 回家 驚嚇
-            if self.current_ai_mode == MODE_EXIT_HOUSE : self.target = (13.5, 10) 
-            elif self.current_ai_mode == MODE_FRIGHTENED: self.target = (player.grid_x, player.grid_y)
-            elif self.current_ai_mode == MODE_GO_HOME: self.target = self.home_pos
+            if self.current_ai_mode == MODE_EXIT_HOUSE :
+                self.target = (13.5, 10) 
+            elif self.current_ai_mode == MODE_FRIGHTENED:
+                self.target = (player.grid_x, player.grid_y)
+            elif self.current_ai_mode == MODE_GO_HOME:
+                self.target = self.home_pos
             # 散開模式
             elif self.current_ai_mode == MODE_SCATTER:
                 current_target_point = self.scatter_path[self.scatter_index]
@@ -265,32 +271,39 @@ class Ghost:
                         if global_ghost_mode == MODE_CHASE:
                             self.current_ai_mode = self.ai_mode # 切換回原本的追逐個性
                             # 這裡不需要反向，因為是順勢切換
-                            print(f"{self.color} 繞行結束，開始追逐！")
+                            if self.on_log:
+                                self.on_log(f"{self.color} 繞行結束，開始追逐！")
                 
                 self.target = self.scatter_path[self.scatter_index]
 
             # *四個鬼的獨立AI模式
 
             # PINKY 追著玩家
-            elif self.current_ai_mode == AI_CHASE_BLINKY: self.target = (player.grid_x, player.grid_y)
+            elif self.current_ai_mode == AI_CHASE_BLINKY: 
+                self.target = (player.grid_x, player.grid_y)
 
             # BLINKY 預測玩家未來的位置 追那裡
             # 如果超出、是牆壁的話要怎麼追S
             # 如果目標在牆壁裡：Pinky 會試圖走到牆壁的「隔壁」，也就是地圖上最靠近那個牆壁點的可通行位置。
             # 如果目標在地圖外：Pinky 會試圖走到地圖的邊緣，貼著邊界看著那個遙遠的目標
             elif self.current_ai_mode == AI_CHASE_PINKY:
-                if player_stopped: self.target = (player.grid_x, player.grid_y)
-                else: self.target = (player.grid_x + (player_dir_x * 4), player.grid_y + (player_dir_y * 4))
+                if player_stopped:
+                    self.target = (player.grid_x, player.grid_y)
+                else: 
+                    self.target = (player.grid_x + (player_dir_x * 4), player.grid_y + (player_dir_y * 4))
 
             # CLYDE 裝忙 快追到就跑
             elif self.current_ai_mode == AI_CHASE_CLYDE:
                 distance = self.get_distance((self.grid_x, self.grid_y), (player.grid_x, player.grid_y))
-                if distance > 8: self.target = (player.grid_x, player.grid_y)
-                else: self.target = self.scatter_path[0]
+                if distance > 8: 
+                    self.target = (player.grid_x, player.grid_y)
+                else: 
+                    self.target = self.scatter_path[0]
 
             # INKY 由blinky和玩家的位置決定要怎麼追
             elif self.current_ai_mode == AI_CHASE_INKY:
-                if blinky_tile is None or player_stopped: self.target = (player.grid_x, player.grid_y)
+                if blinky_tile is None or player_stopped: 
+                    self.target = (player.grid_x, player.grid_y)
                 else:
                     trigger_x = player.grid_x + (player_dir_x * 2)
                     trigger_y = player.grid_y + (player_dir_y * 2)
@@ -324,5 +337,7 @@ class Ghost:
         self.pixel_x += self.direction[0] * self.speed
         self.pixel_y += self.direction[1] * self.speed
             
-        if self.pixel_x < -TILE_SIZE//2: self.pixel_x = SCREEN_WIDTH + TILE_SIZE//2
-        elif self.pixel_x > SCREEN_WIDTH + TILE_SIZE//2: self.pixel_x = -TILE_SIZE//2
+        if self.pixel_x < -TILE_SIZE//2:
+            self.pixel_x = SCREEN_WIDTH + TILE_SIZE//2
+        elif self.pixel_x > SCREEN_WIDTH + TILE_SIZE//2:
+            self.pixel_x = -TILE_SIZE//2
