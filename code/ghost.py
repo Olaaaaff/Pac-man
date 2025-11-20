@@ -224,6 +224,8 @@ class Ghost:
             if self.current_ai_mode == "EXIT_HOUSE": self.target = (13.5, 10) 
             elif self.current_ai_mode == "FRIGHTENED": self.target = (player.grid_x, player.grid_y)
             elif self.current_ai_mode == "GO_HOME": self.target = self.home_pos
+            # 新增散開模式
+            elif self.current_ai_mode == "SCATTER": self.target = self.scatter_target
             # 四個鬼的獨立AI
             # PINKY 追著玩家
             elif self.current_ai_mode == "CHASE_BLINKY": self.target = (player.grid_x, player.grid_y)
