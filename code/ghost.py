@@ -108,7 +108,7 @@ class Ghost:
         
         for move_dir in self.all_directions:
             # 某些模式下不能回頭
-            is_chase_or_random = (self.current_ai_mode.startswith("CHASE_") or self.current_ai_mode == "RANDOM")
+            is_chase_or_random = (self.current_ai_mode.startswith("CHASE_") or self.current_ai_mode == "GO_HOME")
             if is_chase_or_random and move_dir == reverse_dir:
                 continue
 
