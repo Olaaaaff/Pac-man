@@ -51,13 +51,6 @@ class Player:
                 game_map[curr_grid_y][curr_grid_x] = TILE_EMPTY
                 return EVENT_ATE_POWER_PELLET
 
-        # 牆壁判別
-        def is_wall(gx, gy):
-            if 0 <= gy < len(game_map) and 0 <= gx < len(game_map[0]):
-                tile = game_map[gy][gx]
-                return tile == TILE_WALL  or tile == TILE_DOOR
-            return False
-
         # 轉彎邏輯 (分軸檢查) 
         if self.next_direction != (0, 0):
             # 水平轉彎 (左/右)
@@ -65,7 +58,7 @@ class Player:
                 if is_centered_y:
                     next_grid_x = curr_grid_x + self.next_direction[0]
                     # 檢查邊界，如果在範圍內才檢查牆壁；範圍外(隧道)允許轉彎
-                    if not is_wall(next_grid_x,curr_grid_y):
+                    if not is_wall(game_map, next_grid_x, curr_grid_y) and game_map[curr_grid_y][next_grid_x] != TILE_DOOR:
                         self.direction = self.next_direction
                         self.next_direction = (0, 0)
                         self.pixel_y = (curr_grid_y * TILE_SIZE) + (TILE_SIZE // 2)
@@ -75,7 +68,7 @@ class Player:
                 if is_centered_x:
                     next_grid_y = curr_grid_y + self.next_direction[1]
                     # 檢查邊界
-                    if not is_wall(curr_grid_x,next_grid_y):
+                    if not is_wall(game_map, curr_grid_x, next_grid_y) and game_map[next_grid_y][curr_grid_x] != TILE_DOOR:
                         self.direction = self.next_direction
                         self.next_direction = (0, 0)
                         self.pixel_x = (curr_grid_x * TILE_SIZE) + (TILE_SIZE // 2)
@@ -90,7 +83,7 @@ class Player:
                 # 只有當 next_g_x 在地圖範圍內時，才檢查是不是牆壁
                 # 如果超出範圍 (例如 -1 或 29)，代表正在進隧道，我們允許移動 (不設 can_move = False)
                 if 0 <= next_grid_x < len(game_map[0]):
-                    if is_wall(next_grid_x, curr_grid_y):
+                    if is_wall(game_map, next_grid_x, curr_grid_y) or game_map[curr_grid_y][next_grid_x] == TILE_DOOR:
                         can_move = False
                         self.pixel_x = (curr_grid_x * TILE_SIZE) + (TILE_SIZE // 2)
 
@@ -100,7 +93,7 @@ class Player:
                 next_grid_y = curr_grid_y + self.direction[1]
                 # 只有當 next_g_y 在地圖範圍內時，才檢查是不是牆壁
                 if 0 <= next_grid_y < len(game_map):
-                    if is_wall(curr_grid_x, next_grid_y):
+                    if is_wall(game_map, curr_grid_x, next_grid_y) or game_map[next_grid_y][curr_grid_x] == TILE_DOOR:
                         can_move = False
                         self.pixel_y = (curr_grid_y * TILE_SIZE) + (TILE_SIZE // 2)
 

@@ -110,3 +110,14 @@ MAP_STRINGS = [
 
 # 將字串地圖轉換成可修改的列表 (List)
 GAME_MAP = [list(row) for row in MAP_STRINGS]
+
+def is_wall(game_map, x, y):
+    """
+    檢查給定座標是否為牆壁。
+    如果座標超出地圖範圍 (例如左右隧道)，回傳 False (表示可通行)。
+    """
+    # 檢查是否在地圖範圍內
+    if 0 <= y < len(game_map) and 0 <= x < len(game_map[0]):
+        return game_map[y][x] == TILE_WALL
+    # 超出範圍 (例如隧道口)，視為非牆壁，可通行
+    return False

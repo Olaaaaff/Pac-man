@@ -126,11 +126,17 @@ class Ghost:
                 tile = game_map[next_g_y][check_x]
                 
                 # 門的通行邏輯
-                if tile == TILE_WALL :
-                    continue # 牆壁不能過
-                elif tile == TILE_DOOR:
+                if is_wall(game_map, next_g_x, next_g_y):
+                    continue # 撞牆
+
+                # 接下來處理門與邊界
+                if 0 <= next_g_y < len(game_map): # 確保讀取地圖不越界
+                    check_x = next_g_x % len(game_map[0]) # 處理左右隧道邏輯
+                    tile = game_map[next_g_y][check_x]
+
+                if tile == TILE_DOOR:
                     # 只有出門或回家(死掉)模式可以過門
-                    if self.current_ai_mode not in [MODE_EXIT_HOUSE , MODE_GO_HOME]:
+                    if self.current_ai_mode not in [MODE_EXIT_HOUSE, MODE_GO_HOME]:
                         continue
 
                 # 鬼重疊檢查 (等待中或出門中的鬼不視為障礙)
