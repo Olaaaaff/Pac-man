@@ -71,10 +71,10 @@ def reset_game():
     player = Player(13.5, 23)
 
     # 3. 重置鬼魂 (建立新的物件以重置位置和狀態)
-    blinky = Ghost(13, 14, RED, ai_mode=AI_CHASE_BLINKY, scatter_path=path_blinky, in_house=True, delay=0, on_log=log_message)
-    pinky = Ghost(14, 14, PINK, ai_mode=AI_CHASE_PINKY, scatter_path=path_pinky, in_house=True, delay=3000, on_log=log_message)
-    inky = Ghost(12, 14, CYAN, ai_mode=AI_CHASE_INKY, scatter_path=path_inky, in_house=True, delay=6000, on_log=log_message)
-    clyde = Ghost(15, 14, ORANGE, ai_mode=AI_CHASE_CLYDE, scatter_path=path_clyde, in_house=True, delay=9000, on_log=log_message)
+    blinky = Ghost(13, 14, RED, ai_mode=AI_CHASE_BLINKY, scatter_point=path_blinky, in_house=True, delay=0, on_log=log_message)
+    pinky = Ghost(14, 14, PINK, ai_mode=AI_CHASE_PINKY, scatter_point=path_pinky, in_house=True, delay=3000, on_log=log_message)
+    inky = Ghost(12, 14, CYAN, ai_mode=AI_CHASE_INKY, scatter_point=path_inky, in_house=True, delay=6000, on_log=log_message)
+    clyde = Ghost(15, 14, ORANGE, ai_mode=AI_CHASE_CLYDE, scatter_point=path_clyde, in_house=True, delay=9000, on_log=log_message)
     
     # 更新全域的 ghosts 列表
     ghosts[:] = [blinky, pinky, inky, clyde]
@@ -94,25 +94,26 @@ def reset_game():
 # 建立遊戲物件(讓他置中)
 player = Player(13.5, 23)
 
-# 定義散開模式的巡邏路徑 (Scatter Paths)
-# 這些座標構成一個迴圈，讓鬼在角落繞圈圈
+# 定義散開模式的巡邏點(Scatter Point)
+# 利用 "禁止迴轉" 機制，鬼魂到達角落後，會因為無法回頭而被迫繞行附近的牆壁。
+
 # Blinky (右上角): 繞行右上方的牆壁塊
-path_blinky = [(21, 1), (26, 1), (26, 5), (21, 5)]
+path_blinky = [(26, 1)]
 
 # Pinky (左上角): 繞行左上方的牆壁塊 (對稱)
-path_pinky = [(6, 1), (1, 1), (1, 5), (6, 5)]
+path_pinky = [(1, 1)]
 
 # Inky (右下角): 繞行右下方的牆壁塊
-path_inky = [(21, 26), (26, 26), (26, 29), (21, 29)]
+path_inky = [(26, 29)]
 
 # Clyde (左下角): 繞行左下方的牆壁塊
-path_clyde = [(6, 26), (1, 26), (1, 29), (6, 29)]
+path_clyde = [(1, 29)]
 
 # 建立四隻鬼，設定不同的顏色與 AI 模式、等待時間
-blinky = Ghost(13, 14, RED, ai_mode=AI_CHASE_BLINKY, scatter_path=path_blinky, in_house=True, delay=0, on_log=log_message)
-pinky = Ghost(14, 14, PINK, ai_mode=AI_CHASE_PINKY, scatter_path=path_pinky, in_house=True, delay=3000, on_log=log_message)
-inky = Ghost(12, 14, CYAN, ai_mode=AI_CHASE_INKY, scatter_path=path_inky, in_house=True, delay=6000, on_log=log_message)
-clyde = Ghost(15, 14, ORANGE, ai_mode=AI_CHASE_CLYDE, scatter_path=path_clyde, in_house=True, delay=9000, on_log=log_message)
+blinky = Ghost(13, 14, RED, ai_mode=AI_CHASE_BLINKY, scatter_point=path_blinky, in_house=True, delay=0, on_log=log_message)
+pinky = Ghost(14, 14, PINK, ai_mode=AI_CHASE_PINKY, scatter_point=path_pinky, in_house=True, delay=3000, on_log=log_message)
+inky = Ghost(12, 14, CYAN, ai_mode=AI_CHASE_INKY, scatter_point=path_inky, in_house=True, delay=6000, on_log=log_message)
+clyde = Ghost(15, 14, ORANGE, ai_mode=AI_CHASE_CLYDE, scatter_point=path_clyde, in_house=True, delay=9000, on_log=log_message)
 
 
 ghosts = [blinky, pinky, inky, clyde]

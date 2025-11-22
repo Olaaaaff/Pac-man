@@ -5,7 +5,7 @@ import math
 from settings import *
 
 class Ghost:
-    def __init__(self, grid_x, grid_y, color, ai_mode, scatter_path=None, in_house=False,delay=0, on_log=None):
+    def __init__(self, grid_x, grid_y, color, ai_mode, scatter_point=None, in_house=False,delay=0, on_log=None):
         self.grid_x = grid_x
         self.grid_y = grid_y
         self.home_pos = (grid_x, grid_y)
@@ -34,10 +34,10 @@ class Ghost:
         else:
             self.current_ai_mode = ai_mode
         
-        if scatter_path is None:
+        if scatter_point is None:
             self.scatter_path = [(grid_x, grid_y)]
         else:
-            self.scatter_path = scatter_path
+            self.scatter_path = scatter_point
 
         self.scatter_index = 0  # 追蹤目前走到路徑的第幾個點
         self.target = (0, 0)
