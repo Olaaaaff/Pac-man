@@ -235,7 +235,6 @@ class Ghost:
         # 處理 WAITING 狀態
         if self.current_ai_mode == MODE_WAITING:
             # 如果現在是驚嚇模式，就暫停倒數，直接 return
-            # 因為我們在 start_frightened 裡有設定 "就算在家也會變 is_frightened=True"
             if self.is_frightened:
                 # 選擇讓它繼續 bounce，但不扣時間
                 home_pixel_y = (self.home_pos[1]
@@ -305,6 +304,9 @@ class Ghost:
             player_stopped = (player_dir_x == 0 and player_dir_y == 0)
 
             self.target = (player.grid_x, player.grid_y)
+            
+            # [新增] 標記是否已經使用了 A* 找到了路徑，避免被後面的貪婪演算法覆蓋
+            use_astar_path = False
 
             # *設定AI模式
             # 共通模式 離家 回家 驚嚇
@@ -314,7 +316,8 @@ class Ghost:
                 self.target = (player.grid_x, player.grid_y)
             elif self.current_ai_mode == MODE_GO_HOME:
                 self.target = self.home_pos
-            # 散開模式
+                
+            # 散開模式 (原本只有設定 target，現在加入 A*)
             elif self.current_ai_mode == MODE_SCATTER:
                 current_target_point = self.scatter_path[self.scatter_index]
                 # 檢查是否抵達當前路徑點
@@ -333,6 +336,15 @@ class Ghost:
                                 self.on_log(f"{self.color} 繞行結束，開始追逐！")
 
                 self.target = self.scatter_path[self.scatter_index]
+                
+                # [修改] 使用 A* 尋找前往 scatter 點的路徑
+                path = self.A_star((self.grid_x, self.grid_y), self.target, game_map)
+                if path and len(path) > 1:
+                    next_step = path[1]
+                    dx = next_step[0] - self.grid_x
+                    dy = next_step[1] - self.grid_y
+                    self.direction = (dx, dy)
+                    use_astar_path = True # 標記已使用 A*
 
             # *四個鬼的獨立AI模式
 
@@ -346,20 +358,31 @@ class Ghost:
                     dx = next_step[0] - self.grid_x
                     dy = next_step[1] - self.grid_y
                     self.direction = (dx, dy)
+                    use_astar_path = True # 標記已使用 A*
 
             # PINKY 預測玩家未來的位置 追那裡
-            # 如果超出、是牆壁的話要怎麼追
-            # 如果目標在牆壁裡：Pinky 會試圖走到牆壁的「隔壁」，也就是地圖上最靠近那個牆壁點的可通行位置。
-            # 如果目標在地圖外：Pinky 會試圖走到地圖的邊緣，貼著邊界看著那個遙遠的目標
             elif self.current_ai_mode == AI_CHASE_PINKY:
+                # 1. 維持原本的目標計算邏輯
                 if player_stopped:
                     self.target = (player.grid_x, player.grid_y)
                 else:
                     self.target = (player.grid_x + (player_dir_x * 4),
                                    player.grid_y + (player_dir_y * 4))
+                
+                # 2. 【新增】加入 A* 路徑搜尋
+                path = self.A_star((self.grid_x, self.grid_y), self.target, game_map)
+                if path and len(path) > 1:
+                    next_step = path[1]
+                    dx = next_step[0] - self.grid_x
+                    dy = next_step[1] - self.grid_y
+                    self.direction = (dx, dy)
+                    use_astar_path = True
 
+            #Pinky 和 Inky 的目標點經常會落在「牆壁內」或「地圖外」，這時候 A* 可能會找不到路徑（回傳 None）
+            #因為 use_astar_path 保持 False，自動切換回下方的貪婪演算法
             # CLYDE 裝忙 快追到就跑
             elif self.current_ai_mode == AI_CHASE_CLYDE:
+                # 1. 維持原本的目標計算邏輯
                 distance = self.get_distance(
                     (self.grid_x, self.grid_y), (player.grid_x, player.grid_y))
                 if distance > 8:
@@ -367,8 +390,18 @@ class Ghost:
                 else:
                     self.target = self.scatter_path[0]
 
+                # 2. 【新增】加入 A* 路徑搜尋
+                path = self.A_star((self.grid_x, self.grid_y), self.target, game_map)
+                if path and len(path) > 1:
+                    next_step = path[1]
+                    dx = next_step[0] - self.grid_x
+                    dy = next_step[1] - self.grid_y
+                    self.direction = (dx, dy)
+                    use_astar_path = True
+
             # INKY 由blinky和玩家的位置決定要怎麼追
             elif self.current_ai_mode == AI_CHASE_INKY:
+                # 1. 維持原本的目標計算邏輯
                 if blinky_tile is None or player_stopped:
                     self.target = (player.grid_x, player.grid_y)
                 else:
@@ -379,8 +412,18 @@ class Ghost:
                     vec_y = trigger_y - blinky_y
                     self.target = (trigger_x + vec_x, trigger_y + vec_y)
 
-            # 走遍他所能允許的方向
-            if self.target and valid_directions:
+                # 2. 【新增】加入 A* 路徑搜尋
+                path = self.A_star((self.grid_x, self.grid_y), self.target, game_map)
+                if path and len(path) > 1:
+                    next_step = path[1]
+                    dx = next_step[0] - self.grid_x
+                    dy = next_step[1] - self.grid_y
+                    self.direction = (dx, dy)
+                    use_astar_path = True
+
+            # 走遍他所能允許的方向 (貪婪算法)
+            # [修改] 增加判斷：如果 use_astar_path 為 True，代表已經決定方向了，就跳過這裡
+            if not use_astar_path and self.target and valid_directions:
                 best_direction = (0, 0)
                 if self.current_ai_mode == MODE_FRIGHTENED:
                     best_distance = float('-inf')
