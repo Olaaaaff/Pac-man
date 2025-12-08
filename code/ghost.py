@@ -3,7 +3,7 @@ import pygame
 import random
 import math
 from settings import *
-from queue import PriorityQueue
+from queue import PriorityQueue, Queue
 
 
 class Ghost:
@@ -302,6 +302,24 @@ class Ghost:
                     came_from[next_node] = current
 
         return self.reconstruct_next_step(came_from, start, target)
+
+    # ! 要改
+    # def algo_dfs(self, start, goal, game_map):
+        stack = [start]
+        came_from = {}
+        visited = {start}
+        while stack:
+            current = stack.pop()
+            if current == goal:
+                return self.reconstruct_path(came_from, current)
+            neighbors = self.get_neighbors(current, game_map)
+            random.shuffle(neighbors)  # 隨機化增加趣味
+            for nx, ny in neighbors:
+                if (nx, ny) not in visited:
+                    visited.add((nx, ny))
+                    came_from[(nx, ny)] = current
+                    stack.append((nx, ny))
+        return None
 
     def reconstruct_next_step(self, came_from, start, target):
         """ 從 came_from 字典中回推路徑，並回傳 start 的下一個點 """
