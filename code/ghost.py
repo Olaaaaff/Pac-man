@@ -218,27 +218,21 @@ class Ghost:
 
         return valid_moves
 
-    def update(self, game_map, player, all_ghosts, dt, global_ghost_mode, blinky_tile=None):
-        # 只有在非特殊狀態 (非回家、非出門、非驚嚇、非被吃) 時才判斷
+   def update(self, game_map, player, all_ghosts, dt, global_ghost_mode, blinky_tile=None):
+        # 1. 狀態檢查與切換 (保持原樣)
         valid_to_switch = (self.current_ai_mode not in [MODE_GO_HOME, MODE_EXIT_HOUSE, MODE_WAITING]
                            and not self.is_frightened
                            and not self.is_eaten)
 
         if valid_to_switch:
-            # 情況 A: 全域變成 SCATTER，但我還在 CHASE
-            # 解法: 立即切換並反向 (經典 Pac-Man 規則：進攻轉撤退要立刻反應)
             if global_ghost_mode == MODE_SCATTER and self.current_ai_mode != MODE_SCATTER:
                 self.current_ai_mode = MODE_SCATTER
-                self.direction = (
-                    self.direction[0] * -1, self.direction[1] * -1)
+                self.direction = (self.direction[0] * -1, self.direction[1] * -1)
 
-        # 處理 WAITING 狀態
+        # 2. 處理 WAITING (保持原樣)
         if self.current_ai_mode == MODE_WAITING:
-            # 如果現在是驚嚇模式，就暫停倒數，直接 return
             if self.is_frightened:
-                # 選擇讓它繼續 bounce，但不扣時間
-                home_pixel_y = (self.home_pos[1]
-                                * TILE_SIZE) + (TILE_SIZE // 2)
+                home_pixel_y = (self.home_pos[1] * TILE_SIZE) + (TILE_SIZE // 2)
                 limit = 5
                 self.pixel_y += self.direction[1]
                 if self.pixel_y > home_pixel_y + limit:
@@ -248,208 +242,157 @@ class Ghost:
                 return
 
             self.delay -= dt
-            # 檢查時間是否到了
             if self.delay <= 0:
                 self.current_ai_mode = MODE_EXIT_HOUSE
-                self.direction = (0, -1)  # 往上衝
-                # 修正位置到格子中心，確保出門路徑準確
-                self.pixel_x = (self.home_pos[0]
-                                * TILE_SIZE) + (TILE_SIZE // 2)
-                self.pixel_y = (self.home_pos[1]
-                                * TILE_SIZE) + (TILE_SIZE // 2)
+                self.direction = (0, -1)
+                self.pixel_x = (self.home_pos[0] * TILE_SIZE) + (TILE_SIZE // 2)
+                self.pixel_y = (self.home_pos[1] * TILE_SIZE) + (TILE_SIZE // 2)
                 self.speed = self.default_speed
             else:
-                # 等待時的動畫：在原地上下輕微浮動 (Bounce)
-                home_pixel_y = (self.home_pos[1]
-                                * TILE_SIZE) + (TILE_SIZE // 2)
+                home_pixel_y = (self.home_pos[1] * TILE_SIZE) + (TILE_SIZE // 2)
                 limit = 5
-
                 self.pixel_y += self.direction[1]
                 if self.pixel_y > home_pixel_y + limit:
                     self.direction = (0, -0.5)
                 elif self.pixel_y < home_pixel_y - limit:
                     self.direction = (0, 0.5)
-
-            # WAITING 狀態不執行後面的移動邏輯
             return
-        # 位置整數保證
+
+        # 3. 位置校正 (保持原樣)
         if abs(self.pixel_x - round(self.pixel_x)) < 0.1:
             self.pixel_x = round(self.pixel_x)
         if abs(self.pixel_y - round(self.pixel_y)) < 0.1:
             self.pixel_y = round(self.pixel_y)
-        # 正常的移動狀態
+
+        # 判斷是否在格子中心
         is_centered_x = (self.pixel_x - (TILE_SIZE // 2)) % TILE_SIZE == 0
         is_centered_y = (self.pixel_y - (TILE_SIZE // 2)) % TILE_SIZE == 0
 
+        # ==========================================
+        # ★★★ 核心修改：只在中心點進行 AI 決策 ★★★
+        # ==========================================
         if is_centered_x and is_centered_y:
-            self.grid_x = (self.pixel_x - (TILE_SIZE // 2)) // TILE_SIZE
-            self.grid_y = (self.pixel_y - (TILE_SIZE // 2)) // TILE_SIZE
+            self.grid_x = int((self.pixel_x - (TILE_SIZE // 2)) // TILE_SIZE)
+            self.grid_y = int((self.pixel_y - (TILE_SIZE // 2)) // TILE_SIZE)
 
+            # --- 特殊狀態處理 ---
             if self.current_ai_mode == MODE_GO_HOME and (self.grid_x, self.grid_y) == self.home_pos:
                 self.respawn()
 
             if self.current_ai_mode == MODE_EXIT_HOUSE:
-                # 如果 Y 座標小於等於 11 (門在 12)，代表已經出去了
                 if self.grid_y <= 11:
-                    self.current_ai_mode = self.ai_mode  # 切換回正常追蹤模式
-                    self.direction = random.choice([(-1, 0), (1, 0)])  # 隨機往左往右
+                    self.current_ai_mode = self.ai_mode
+                    self.direction = random.choice([(-1, 0), (1, 0)])
 
             if not self.is_frightened and self.current_ai_mode not in [MODE_GO_HOME, MODE_EXIT_HOUSE, MODE_WAITING]:
                 self.speed = self.default_speed
 
-            valid_directions = self.get_valid_directions(game_map, all_ghosts)
-
-            player_dir_x = player.direction[0]
-            player_dir_y = player.direction[1]
-            player_stopped = (player_dir_x == 0 and player_dir_y == 0)
-
-            self.target = (player.grid_x, player.grid_y)
-            
-            # [新增] 標記是否已經使用了 A* 找到了路徑，避免被後面的貪婪演算法覆蓋
-            use_astar_path = False
-
-            # *設定AI模式
-            # 共通模式 離家 回家 驚嚇
-            if self.current_ai_mode == MODE_EXIT_HOUSE:
-                self.target = (13.5, 10)
-            elif self.current_ai_mode == MODE_FRIGHTENED:
-                self.target = (player.grid_x, player.grid_y)
-            elif self.current_ai_mode == MODE_GO_HOME:
-                self.target = self.home_pos
+            # --- AI 尋路邏輯 (Target Calculation) ---
+            # 只有當「不在特殊狀態」時才需要複雜的尋路
+            if self.current_ai_mode not in [MODE_GO_HOME, MODE_EXIT_HOUSE, MODE_WAITING]:
                 
-            # 散開模式 (原本只有設定 target，現在加入 A*)
-            elif self.current_ai_mode == MODE_SCATTER:
-                current_target_point = self.scatter_path[self.scatter_index]
-                # 檢查是否抵達當前路徑點
-                if (self.grid_x, self.grid_y) == current_target_point:
-                    self.scatter_index += 1
+                # 1. 先決定目標點 (Target)
+                target_pos = None
 
-                    # 如果路徑走完了 (Index 超出範圍)
-                    if self.scatter_index >= len(self.scatter_path):
-                        self.scatter_index = 0  # 歸零，準備下一圈
-
-                        # 【關鍵】：只有在這個瞬間，才檢查是否該切換去追人
-                        if global_ghost_mode == MODE_CHASE:
-                            self.current_ai_mode = self.ai_mode  # 切換回原本的追逐個性
-                            # 這裡不需要反向，因為是順勢切換
-                            if self.on_log:
-                                self.on_log(f"{self.color} 繞行結束，開始追逐！")
-
-                self.target = self.scatter_path[self.scatter_index]
-                
-                # [修改] 使用 A* 尋找前往 scatter 點的路徑
-                path = self.A_star((self.grid_x, self.grid_y), self.target, game_map)
-                if path and len(path) > 1:
-                    next_step = path[1]
-                    dx = next_step[0] - self.grid_x
-                    dy = next_step[1] - self.grid_y
-                    self.direction = (dx, dy)
-                    use_astar_path = True # 標記已使用 A*
-
-            # *四個鬼的獨立AI模式
-
-            # BLINKY 追著玩家
-            elif self.current_ai_mode == AI_CHASE_BLINKY:
-                self.target = (player.grid_x, player.grid_y)
-                # 用 A* 找路徑
-                path = self.A_star((self.grid_x, self.grid_y), self.target, game_map)
-                if path and len(path) > 1:
-                    next_step = path[1]  # path[0] 是自己目前位置
-                    dx = next_step[0] - self.grid_x
-                    dy = next_step[1] - self.grid_y
-                    self.direction = (dx, dy)
-                    use_astar_path = True # 標記已使用 A*
-
-            # PINKY 預測玩家未來的位置 追那裡
-            elif self.current_ai_mode == AI_CHASE_PINKY:
-                # 1. 維持原本的目標計算邏輯
-                if player_stopped:
-                    self.target = (player.grid_x, player.grid_y)
-                else:
-                    self.target = (player.grid_x + (player_dir_x * 4),
-                                   player.grid_y + (player_dir_y * 4))
-                
-                # 2. 【新增】加入 A* 路徑搜尋
-                path = self.A_star((self.grid_x, self.grid_y), self.target, game_map)
-                if path and len(path) > 1:
-                    next_step = path[1]
-                    dx = next_step[0] - self.grid_x
-                    dy = next_step[1] - self.grid_y
-                    self.direction = (dx, dy)
-                    use_astar_path = True
-
-            #Pinky 和 Inky 的目標點經常會落在「牆壁內」或「地圖外」，這時候 A* 可能會找不到路徑（回傳 None）
-            #因為 use_astar_path 保持 False，自動切換回下方的貪婪演算法
-            # CLYDE 裝忙 快追到就跑
-            elif self.current_ai_mode == AI_CHASE_CLYDE:
-                # 1. 維持原本的目標計算邏輯
-                distance = self.get_distance(
-                    (self.grid_x, self.grid_y), (player.grid_x, player.grid_y))
-                if distance > 8:
-                    self.target = (player.grid_x, player.grid_y)
-                else:
-                    self.target = self.scatter_path[0]
-
-                # 2. 【新增】加入 A* 路徑搜尋
-                path = self.A_star((self.grid_x, self.grid_y), self.target, game_map)
-                if path and len(path) > 1:
-                    next_step = path[1]
-                    dx = next_step[0] - self.grid_x
-                    dy = next_step[1] - self.grid_y
-                    self.direction = (dx, dy)
-                    use_astar_path = True
-
-            # INKY 由blinky和玩家的位置決定要怎麼追
-            elif self.current_ai_mode == AI_CHASE_INKY:
-                # 1. 維持原本的目標計算邏輯
-                if blinky_tile is None or player_stopped:
-                    self.target = (player.grid_x, player.grid_y)
-                else:
-                    trigger_x = player.grid_x + (player_dir_x * 2)
-                    trigger_y = player.grid_y + (player_dir_y * 2)
-                    blinky_x, blinky_y = blinky_tile
-                    vec_x = trigger_x - blinky_x
-                    vec_y = trigger_y - blinky_y
-                    self.target = (trigger_x + vec_x, trigger_y + vec_y)
-
-                # 2. 【新增】加入 A* 路徑搜尋
-                path = self.A_star((self.grid_x, self.grid_y), self.target, game_map)
-                if path and len(path) > 1:
-                    next_step = path[1]
-                    dx = next_step[0] - self.grid_x
-                    dy = next_step[1] - self.grid_y
-                    self.direction = (dx, dy)
-                    use_astar_path = True
-
-            # 走遍他所能允許的方向 (貪婪算法)
-            # [修改] 增加判斷：如果 use_astar_path 為 True，代表已經決定方向了，就跳過這裡
-            if not use_astar_path and self.target and valid_directions:
-                best_direction = (0, 0)
+                # (A) 驚嚇模式 (隨機/逃跑，不需要 A*)
                 if self.current_ai_mode == MODE_FRIGHTENED:
-                    best_distance = float('-inf')
-                else:
-                    best_distance = float('inf')
+                    target_pos = (player.grid_x, player.grid_y) # 這裡其實是用來計算遠離方向的參考點
 
-                for direction in valid_directions:
-                    next_g_x = self.grid_x + direction[0]
-                    next_g_y = self.grid_y + direction[1]
-                    dist = self.get_distance((next_g_x, next_g_y), self.target)
+                # (B) 散開模式 (Scatter)
+                elif self.current_ai_mode == MODE_SCATTER:
+                    current_target_point = self.scatter_path[self.scatter_index]
+                    if (self.grid_x, self.grid_y) == current_target_point:
+                        self.scatter_index += 1
+                        if self.scatter_index >= len(self.scatter_path):
+                            self.scatter_index = 0
+                            if global_ghost_mode == MODE_CHASE:
+                                self.current_ai_mode = self.ai_mode
+                                if self.on_log:
+                                    self.on_log(f"{self.color} 繞行結束，開始追逐！")
+                    target_pos = self.scatter_path[self.scatter_index]
 
-                    # 驚嚇模式 要選擇能有多遠就多遠
-                    if self.current_ai_mode == MODE_FRIGHTENED:
-                        if dist > best_distance:
-                            best_distance = dist
-                            best_direction = direction
-                    # 追逐模式 要選擇能有多近就多近
+                # (C) 各種追逐模式 (Chase)
+                elif self.current_ai_mode == AI_CHASE_BLINKY:
+                    target_pos = (player.grid_x, player.grid_y)
+
+                elif self.current_ai_mode == AI_CHASE_PINKY:
+                    player_dir_x, player_dir_y = player.direction
+                    if player_dir_x == 0 and player_dir_y == 0:
+                         target_pos = (player.grid_x, player.grid_y)
                     else:
-                        if dist < best_distance:
-                            best_distance = dist
-                            best_direction = direction
-                self.direction = best_direction
+                         target_pos = (player.grid_x + (player_dir_x * 4), player.grid_y + (player_dir_y * 4))
 
+                elif self.current_ai_mode == AI_CHASE_CLYDE:
+                    distance = self.get_distance((self.grid_x, self.grid_y), (player.grid_x, player.grid_y))
+                    if distance > 8:
+                        target_pos = (player.grid_x, player.grid_y)
+                    else:
+                        target_pos = self.scatter_path[0]
+
+                elif self.current_ai_mode == AI_CHASE_INKY:
+                    player_dir_x, player_dir_y = player.direction
+                    if blinky_tile is None or (player_dir_x == 0 and player_dir_y == 0):
+                        target_pos = (player.grid_x, player.grid_y)
+                    else:
+                        trigger_x = player.grid_x + (player_dir_x * 2)
+                        trigger_y = player.grid_y + (player_dir_y * 2)
+                        blinky_x, blinky_y = blinky_tile
+                        vec_x = trigger_x - blinky_x
+                        vec_y = trigger_y - blinky_y
+                        target_pos = (trigger_x + vec_x, trigger_y + vec_y)
+
+                self.target = target_pos # 儲存目標以供 debug 或繪圖用
+
+                # 2. 決定下一步方向 (Next Direction)
+                found_path = False
+                
+                # 如果不是驚嚇模式，且有目標，嘗試使用 A*
+                if self.current_ai_mode != MODE_FRIGHTENED and target_pos:
+                    path = self.A_star((self.grid_x, self.grid_y), target_pos, game_map)
+                    if path and len(path) > 1:
+                        next_step = path[1]
+                        dx = next_step[0] - self.grid_x
+                        dy = next_step[1] - self.grid_y
+                        self.direction = (dx, dy)
+                        found_path = True
+                
+                # 3. 貪婪演算法/隨機 (Fallback)
+                # 如果 A* 失敗 (例如目標在牆裡、或是驚嚇模式)，使用原本的過濾邏輯
+                if not found_path:
+                    valid_directions = self.get_valid_directions(game_map, all_ghosts)
+                    if valid_directions:
+                        best_direction = (0, 0)
+                        if self.current_ai_mode == MODE_FRIGHTENED:
+                            best_distance = float('-inf') # 驚嚇模式找最遠
+                        else:
+                            best_distance = float('inf')  # 追逐模式找最近
+
+                        for direction in valid_directions:
+                            next_g_x = self.grid_x + direction[0]
+                            next_g_y = self.grid_y + direction[1]
+                            
+                            # 如果沒有 target_pos (例防呆)，預設追玩家
+                            calc_target = target_pos if target_pos else (player.grid_x, player.grid_y)
+                            dist = self.get_distance((next_g_x, next_g_y), calc_target)
+
+                            if self.current_ai_mode == MODE_FRIGHTENED:
+                                if dist > best_distance:
+                                    best_distance = dist
+                                    best_direction = direction
+                            else:
+                                if dist < best_distance:
+                                    best_distance = dist
+                                    best_direction = direction
+                        
+                        self.direction = best_direction
+
+        # ==========================================
+        # 執行移動 (這部分在 if is_centered 之外，持續執行)
+        # ==========================================
         self.pixel_x += self.direction[0] * self.speed
         self.pixel_y += self.direction[1] * self.speed
 
+        # 隧道處理
         if self.pixel_x < -TILE_SIZE//2:
             self.pixel_x = SCREEN_WIDTH + TILE_SIZE//2
         elif self.pixel_x > SCREEN_WIDTH + TILE_SIZE//2:
