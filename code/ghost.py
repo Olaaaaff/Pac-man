@@ -298,6 +298,39 @@ class Ghost(Entity):
                     came_from[next_node] = current
         return self.reconstruct_next_step(came_from, start, target)
 
+    def get_path_astar(self, start, target):
+        """ Separate method to return the FULL path for visualization """
+        open_set = PriorityQueue()
+        open_set.put((0, start))
+        came_from = {start: None}
+        cost_so_far = {start: 0}
+
+        while not open_set.empty():
+            _, current = open_set.get()
+            if current == target:
+                break
+            for next_node in self.get_neighbors(current):
+                new_cost = cost_so_far[current] + 1
+                if next_node not in cost_so_far or new_cost < cost_so_far[next_node]:
+                    cost_so_far[next_node] = new_cost
+                    priority = new_cost + self.heuristic(next_node, target)
+                    open_set.put((priority, next_node))
+                    came_from[next_node] = current
+
+        # Reconstruct full path
+        if target not in came_from:
+            return []
+        curr = target
+        path = []
+        while curr != start:
+            path.append(curr)
+            curr = came_from.get(curr)
+            if curr is None:
+                return []
+        path.append(start)
+        path.reverse()
+        return path
+
     def reconstruct_next_step(self, came_from, start, target):
         if target not in came_from:
             return None

@@ -595,7 +595,8 @@ class Game:
         buttons = [
             ("1. GREEDY", ALGO_GREEDY, 250, CYAN),
             ("2. BFS", ALGO_BFS, 320, ORANGE),
-            ("3. A* (A-Star)", ALGO_ASTAR, 390, PINK)
+            ("3. A* (A-Star)", ALGO_ASTAR, 390, PINK),
+            ("4. AI VISUAL", ALGO_VISUAL, 460, GREEN)
         ]
 
         self.menu_buttons = []
@@ -617,6 +618,44 @@ class Game:
         else:
             # Draw Map Layer
             self.draw_map_entities()
+
+            # --- AI VISUALIZATION DRAWING ---
+            if self.selected_algorithm == ALGO_VISUAL and self.game_state == GAME_STATE_PLAYING:
+                if self.player:
+                    blinky_tile = None
+                    if self.ghosts:
+                        blinky_tile = (
+                            self.ghosts[0].grid_x, self.ghosts[0].grid_y)
+
+                    for ghost in self.ghosts:
+                        # Skip if ghost is inactive/dead
+                        if ghost.is_eaten or ghost.current_ai_mode in [MODE_GO_HOME, MODE_EXIT_HOUSE, MODE_WAITING]:
+                            continue
+
+                        # Calculate Target (Same logic as update)
+                        target = ghost.get_target_position(
+                            self.player, blinky_tile)
+                        start = (ghost.grid_x, ghost.grid_y)
+
+                        # Get Full Path
+                        path = ghost.get_path_astar(start, target)
+
+                        # Draw Line on map_surface (so it's behind HUD but on map)
+                        if len(path) > 1:
+                            # Convert grid coords to pixel centers
+                            points = []
+                            for px, py in path:
+                                cx = px * TILE_SIZE + TILE_SIZE // 2
+                                cy = py * TILE_SIZE + TILE_SIZE // 2
+                                points.append((cx, cy))
+
+                            if len(points) >= 2:
+                                pygame.draw.lines(
+                                    self.map_surface, ghost.color, False, points, 2)
+                                # Draw small target circle
+                                pygame.draw.circle(
+                                    self.map_surface, ghost.color, points[-1], 4)
+
             # Blit Map to Content (shifted down by Header)
             self.game_content_surface.blit(
                 self.map_surface, (0, self.HEADER_HEIGHT))
