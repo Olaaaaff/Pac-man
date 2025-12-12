@@ -43,6 +43,7 @@ class Game:
         self.player_lives = MAX_LIVES
         self.current_level = 1
         self.selected_algorithm = ALGO_ASTAR
+        self.visual_mode_current_algo = ALGO_ASTAR  # Default for visual mode
         self.high_score = high_score  # From settings.py
 
         # Entities
@@ -218,19 +219,24 @@ class Game:
         self.player.score = old_score
         self.player.lives = old_lives
 
+        # Determine Ghost Algorithm
+        ghost_algo = self.selected_algorithm
+        if self.selected_algorithm == ALGO_VISUAL:
+            ghost_algo = self.visual_mode_current_algo
+
         # Reset Ghosts
         blinky = Ghost(13, 14, RED, ai_mode=AI_CHASE_BLINKY,
                        scatter_point=self.path_blinky, in_house=True, delay=0,
-                       on_log=self.log_message, algorithm=self.selected_algorithm, speed=level_speed)
+                       on_log=self.log_message, algorithm=ghost_algo, speed=level_speed)
         pinky = Ghost(14, 14, PINK, ai_mode=AI_CHASE_PINKY,
                       scatter_point=self.path_pinky, in_house=True, delay=3000,
-                      on_log=self.log_message, algorithm=self.selected_algorithm, speed=level_speed)
+                      on_log=self.log_message, algorithm=ghost_algo, speed=level_speed)
         inky = Ghost(12, 14, CYAN, ai_mode=AI_CHASE_INKY, scatter_point=self.path_inky,
                      in_house=True, delay=6000,
-                     on_log=self.log_message, algorithm=self.selected_algorithm, speed=level_speed)
+                     on_log=self.log_message, algorithm=ghost_algo, speed=level_speed)
         clyde = Ghost(15, 14, ORANGE, ai_mode=AI_CHASE_CLYDE,
                       scatter_point=self.path_clyde, in_house=True, delay=9000,
-                      on_log=self.log_message, algorithm=self.selected_algorithm, speed=level_speed)
+                      on_log=self.log_message, algorithm=ghost_algo, speed=level_speed)
 
         self.ghosts = [blinky, pinky, inky, clyde]
 
@@ -325,6 +331,24 @@ class Game:
                     if event.key == pygame.K_p or event.key == pygame.K_ESCAPE:
                         self.game_state = GAME_STATE_PAUSED
                         self.log_message("Game Paused", YELLOW)
+
+                    # AI Visual Mode Switching
+                    if self.selected_algorithm == ALGO_VISUAL:
+                        new_algo = None
+                        if event.key == pygame.K_1:
+                            new_algo = ALGO_GREEDY
+                            self.log_message("Switched to GREEDY", CYAN)
+                        elif event.key == pygame.K_2:
+                            new_algo = ALGO_BFS
+                            self.log_message("Switched to BFS", ORANGE)
+                        elif event.key == pygame.K_3:
+                            new_algo = ALGO_ASTAR
+                            self.log_message("Switched to A*", PINK)
+
+                        if new_algo:
+                            self.visual_mode_current_algo = new_algo
+                            for ghost in self.ghosts:
+                                ghost.algorithm = new_algo
 
             elif self.game_state in [GAME_STATE_GAME_OVER, GAME_STATE_WIN]:
                 if event.type == pygame.KEYDOWN:
@@ -564,9 +588,14 @@ class Game:
         score_rect = score_text.get_rect(midleft=(10, cy))
         self.game_content_surface.blit(score_text, score_rect)
 
-        # High Score
-        hs_text = SCORE_FONT.render(
-            f"HIGH: {int(self.high_score)}", True, YELLOW)
+        # High Score or Visual Mode Algo
+        center_text = f"HIGH: {int(self.high_score)}"
+        center_color = YELLOW
+        if self.selected_algorithm == ALGO_VISUAL:
+            center_text = f"MODE: VISUAL ({self.visual_mode_current_algo})"
+            center_color = GREEN
+
+        hs_text = SCORE_FONT.render(center_text, True, center_color)
         hs_rect = hs_text.get_rect(center=(SCREEN_WIDTH // 2, cy))
         self.game_content_surface.blit(hs_text, hs_rect)
 
