@@ -142,6 +142,19 @@ def draw_map():
                 pygame.draw.circle(game_content_surface, WHITE,
                                    (center_x, center_y), 6)
 
+    # 3. 繪製水果
+    if fruit_active:
+        fx = fruit_pos[0] * TILE_SIZE + 10
+        fy = fruit_pos[1] * TILE_SIZE + 10
+        # 畫櫻桃 (兩個紅圓 + 綠梗)
+        pygame.draw.circle(game_content_surface, RED, (fx - 4, fy + 2), 5)
+        pygame.draw.circle(game_content_surface, RED, (fx + 4, fy + 6), 5)
+        # 梗
+        pygame.draw.line(game_content_surface, GREEN,
+                         (fx - 4, fy + 2), (fx, fy - 6), 2)
+        pygame.draw.line(game_content_surface, GREEN,
+                         (fx + 4, fy + 6), (fx, fy - 6), 2)
+
 
 player_lives = MAX_LIVES
 current_level = 1
@@ -163,6 +176,14 @@ last_mode_switch_time = 0
 ready_animation_start_time = 0
 level_frightened_duration = FRIGHTENED_DURATION  # 當前關卡的受驚持續時間
 
+# --- 水果機制 (Bonus Fruit) ---
+fruit_active = False
+fruit_spawn_time = 0
+fruit_score = 100
+fruit_pos = (14, 17)  # 鬼屋下方
+starting_pellets = 0
+fruits_spawned = 0  # 紀錄該關卡已生成水果次數 (避免重複生成)
+
 path_blinky = [(26, 1), (26, 5), (21, 5), (21, 1)]
 path_pinky = [(1, 1), (1, 5), (6, 5), (6, 1)]
 path_inky = [(26, 29), (26, 26), (21, 26), (21, 29)]
@@ -171,7 +192,7 @@ path_clyde = [(1, 29), (1, 26), (6, 26), (6, 29)]
 
 def init_level(new_level=False):
     """ 重置遊戲所有狀態，回到初始畫面 """
-    global player, ghosts, total_pellets, game_state, frightened_mode, global_ghost_mode, last_mode_switch_time, GAME_MAP, game_logs, frightened_start_time, level_frightened_duration
+    global player, ghosts, total_pellets, game_state, frightened_mode, global_ghost_mode, last_mode_switch_time, GAME_MAP, game_logs, frightened_start_time, level_frightened_duration, fruit_active, starting_pellets, fruits_spawned
 
     # 1. 重置地圖 (必須重新從 settings.MAP_STRINGS 生成，因為原本的被吃掉了)
     # 注意：這裡我們使用 [:] 來原地修改列表內容，確保傳參參照正確
@@ -194,6 +215,12 @@ def init_level(new_level=False):
     if new_level:
         log_message(
             f"Diffculty Up! Speed: {level_speed:.1f}, Fright: {level_frightened_duration/1000}s", CYAN)
+        # 計算總豆子
+        total_pellets = sum(row.count(TILE_PELLET) for row in GAME_MAP)
+        starting_pellets = total_pellets
+        fruits_spawned = 0
+        fruit_active = False
+        log_message(f"Total pellets: {total_pellets}", WHITE)
 
     old_score = 0
     old_lives = MAX_LIVES
@@ -397,6 +424,43 @@ while running:
                     log_message("Power Pellet eaten! Ghosts Frightened!", CYAN)
                     for ghost in ghosts:
                         ghost.start_frightened()
+
+            # --- 水果生成邏輯 ---
+            # 當吃到 1/3 (70顆) 或 2/3 (170顆) 時生成
+            pellets_eaten = starting_pellets - total_pellets
+            if not fruit_active and fruits_spawned < 2:
+                # 簡單判定：這裡用固定餘數或區間檢查
+                # 例如吃掉 70 和 170 顆時
+                should_spawn = False
+                if fruits_spawned == 0 and pellets_eaten >= 70:
+                    should_spawn = True
+                elif fruits_spawned == 1 and pellets_eaten >= 170:
+                    should_spawn = True
+
+                if should_spawn:
+                    fruit_active = True
+                    fruit_spawn_time = pygame.time.get_ticks()
+                    fruits_spawned += 1
+                    fruit_score = 100 * current_level
+                    log_message(
+                        f"Bonus Fruit Appeared! ({fruit_score} pts)", PINK)
+
+            # 水果消失計時 (10秒)
+            if fruit_active:
+                if pygame.time.get_ticks() - fruit_spawn_time > 10000:
+                    fruit_active = False
+                    log_message("Fruit disappeared...", GREY)
+                else:
+                    # 檢查吃水果 (簡單距離判定)
+                    fx, fy = fruit_pos[0] * TILE_SIZE + \
+                        TILE_SIZE//2, fruit_pos[1] * TILE_SIZE + TILE_SIZE//2
+                    dist = math.hypot(player.pixel_x - fx, player.pixel_y - fy)
+                    if dist < player.radius + 10:
+                        fruit_active = False
+                        player.score += fruit_score
+                        if player.score > high_score:
+                            high_score = player.score
+                        log_message(f"Yummy! Bonus Fruit: {fruit_score}", PINK)
 
         # 勝利檢查
         if total_pellets <= 0:
