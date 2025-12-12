@@ -113,7 +113,8 @@ class Ghost(Entity):
 
     def eat(self):
         if self.on_log:
-            self.on_log(f"[{self.ai_mode}] Ghost eaten! Returning home.")
+            self.on_log(
+                f"[{self.ai_mode}] Ghost eaten! Returning home.", GREY)
         self.is_frightened = False
         self.is_eaten = True
         self.current_ai_mode = MODE_GO_HOME
@@ -123,7 +124,8 @@ class Ghost(Entity):
 
     def respawn(self):
         if self.on_log:
-            self.on_log(f"[{self.ai_mode}] Ghost respawned! Exiting house.")
+            self.on_log(
+                f"[{self.ai_mode}] Ghost respawned! Exiting house.", self.color)
         self.is_eaten = False
         self.current_ai_mode = MODE_EXIT_HOUSE
         self.speed = self.default_speed
@@ -136,11 +138,14 @@ class Ghost(Entity):
     def start_frightened(self):
         if self.is_eaten:
             return
-        self.is_frightened = True
         if self.current_ai_mode not in [MODE_GO_HOME, MODE_EXIT_HOUSE, MODE_WAITING]:
+            self.is_frightened = True
             self.current_ai_mode = MODE_FRIGHTENED
             self.speed = 1  # 變慢 (如果用 dt 架構，這裡應該是 0.5 * SPEED)
             self.direction = (self.direction[0] * -1, self.direction[1] * -1)
+            if self.on_log:
+                self.on_log(
+                    f"[{self.ai_mode}] Ghost frightened!", FRIGHTENED_BLUE)
 
     def end_frightened(self):
         if self.is_frightened:
@@ -148,6 +153,9 @@ class Ghost(Entity):
             if self.current_ai_mode not in [MODE_GO_HOME, MODE_EXIT_HOUSE, MODE_WAITING]:
                 self.current_ai_mode = self.ai_mode
                 self.speed = self.default_speed
+                if self.on_log:
+                    self.on_log(
+                        f"[{self.ai_mode}] Ghost unfrightened.", self.color)
 
     def get_neighbors(self, node):
         x, y = node
@@ -347,8 +355,13 @@ class Ghost(Entity):
 
             # 特殊事件檢查
             if self.current_ai_mode == MODE_GO_HOME and (self.grid_x, self.grid_y) == self.home_pos:
-                self.respawn()
-                return
+                self.is_eaten = False
+                self.is_frightened = False  # 重生後不再驚嚇
+                self.current_ai_mode = MODE_EXIT_HOUSE
+                if self.on_log:
+                    self.on_log(
+                        f"[{self.ai_mode}] Ghost respawned! Exiting house.", self.color)
+                self.direction = (0, -1)  # Reset direction to exit house
 
             if self.current_ai_mode == MODE_EXIT_HOUSE:
                 if self.grid_y <= GHOST_HOUSE_Y_THRESHOLD:
