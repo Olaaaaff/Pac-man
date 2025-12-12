@@ -158,8 +158,10 @@ global_ghost_mode = MODE_SCATTER
 frightened_mode = False
 frightened_start_time = 0
 global_ghost_mode = MODE_SCATTER
+global_ghost_mode = MODE_SCATTER
 last_mode_switch_time = 0
-ready_animation_start_time = 0  # Ready 動畫開始時間
+ready_animation_start_time = 0
+level_frightened_duration = FRIGHTENED_DURATION  # 當前關卡的受驚持續時間
 
 path_blinky = [(26, 1), (26, 5), (21, 5), (21, 1)]
 path_pinky = [(1, 1), (1, 5), (6, 5), (6, 1)]
@@ -169,7 +171,7 @@ path_clyde = [(1, 29), (1, 26), (6, 26), (6, 29)]
 
 def init_level(new_level=False):
     """ 重置遊戲所有狀態，回到初始畫面 """
-    global player, ghosts, total_pellets, game_state, frightened_mode, global_ghost_mode, last_mode_switch_time, GAME_MAP, game_logs, frightened_start_time
+    global player, ghosts, total_pellets, game_state, frightened_mode, global_ghost_mode, last_mode_switch_time, GAME_MAP, game_logs, frightened_start_time, level_frightened_duration
 
     # 1. 重置地圖 (必須重新從 settings.MAP_STRINGS 生成，因為原本的被吃掉了)
     # 注意：這裡我們使用 [:] 來原地修改列表內容，確保傳參參照正確
@@ -179,6 +181,20 @@ def init_level(new_level=False):
         generate_background()  # 重現地圖時，重繪背景
         log_message(f"--- Level {current_level} Started ---", YELLOW)
 
+    # --- 難度調整 (Difficulty Progression) ---
+    # 速度: 每關 +5% (Base: SPEED=2) -> Level 10: 3.0
+    speed_bonus = (current_level - 1) * 0.1
+    level_speed = min(SPEED + speed_bonus, 5.0)  # 上限 5
+
+    # 受驚時間: 每關 -0.5秒 (Base: 7000) -> Min: 2000
+    duration_reduction = (current_level - 1) * 500
+    level_frightened_duration = max(
+        FRIGHTENED_DURATION - duration_reduction, 2000)
+
+    if new_level:
+        log_message(
+            f"Diffculty Up! Speed: {level_speed:.1f}, Fright: {level_frightened_duration/1000}s", CYAN)
+
     old_score = 0
     old_lives = MAX_LIVES
 
@@ -186,19 +202,19 @@ def init_level(new_level=False):
         old_score = player.score
         old_lives = player.lives  # 保留生命
 
-    player = Player(14, 23)  # 使用整數座標確保初始對齊 (14, 23)
+    player = Player(14, 23, speed=level_speed)  # 使用整數座標確保初始對齊 (14, 23)
     player.score = old_score
     player.lives = old_lives
 
     # 3. 重置鬼魂 (建立新的物件以重置位置和狀態)
     blinky = Ghost(13, 14, RED, ai_mode=AI_CHASE_BLINKY,
-                   scatter_point=path_blinky, in_house=True, delay=0, on_log=log_message, algorithm=selected_algorithm)
+                   scatter_point=path_blinky, in_house=True, delay=0, on_log=log_message, algorithm=selected_algorithm, speed=level_speed)
     pinky = Ghost(14, 14, PINK, ai_mode=AI_CHASE_PINKY,
-                  scatter_point=path_pinky, in_house=True, delay=3000, on_log=log_message, algorithm=selected_algorithm)
+                  scatter_point=path_pinky, in_house=True, delay=3000, on_log=log_message, algorithm=selected_algorithm, speed=level_speed)
     inky = Ghost(12, 14, CYAN, ai_mode=AI_CHASE_INKY, scatter_point=path_inky,
-                 in_house=True, delay=6000, on_log=log_message, algorithm=selected_algorithm)
+                 in_house=True, delay=6000, on_log=log_message, algorithm=selected_algorithm, speed=level_speed)
     clyde = Ghost(15, 14, ORANGE, ai_mode=AI_CHASE_CLYDE,
-                  scatter_point=path_clyde, in_house=True, delay=9000, on_log=log_message, algorithm=selected_algorithm)
+                  scatter_point=path_clyde, in_house=True, delay=9000, on_log=log_message, algorithm=selected_algorithm, speed=level_speed)
 
     # 更新全域的 ghosts 列表
     ghosts[:] = [blinky, pinky, inky, clyde]
@@ -346,7 +362,7 @@ while running:
 
         # Frightened (受驚) 模式計時器
         if frightened_mode:
-            if current_time - frightened_start_time > FRIGHTENED_DURATION:
+            if current_time - frightened_start_time > level_frightened_duration:
                 frightened_mode = False
                 log_message("Frightened mode ended. Ghosts normal.", WHITE)
                 for ghost in ghosts:
@@ -442,7 +458,7 @@ while running:
             flash_white = False
             if frightened_mode:
                 elapsed = pygame.time.get_ticks() - frightened_start_time
-                remaining = FRIGHTENED_DURATION - elapsed
+                remaining = level_frightened_duration - elapsed
                 if remaining < 2000:
                     # 每 200ms 切換一次
                     flash_white = (pygame.time.get_ticks() // 200) % 2 == 0

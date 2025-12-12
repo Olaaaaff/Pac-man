@@ -8,9 +8,9 @@ from queue import PriorityQueue
 
 
 class Ghost(Entity):
-    def __init__(self, grid_x, grid_y, color, ai_mode, scatter_point=None, in_house=False, delay=0, on_log=None, algorithm=ALGO_ASTAR):
-        # 初始化 Entity (SPEED 為預設速度)
-        super().__init__(grid_x, grid_y, SPEED)
+    def __init__(self, grid_x, grid_y, color, ai_mode, speed=SPEED, scatter_point=None, in_house=False, delay=0, on_log=None, algorithm=ALGO_ASTAR):
+        # 初始化 Entity
+        super().__init__(grid_x, grid_y, speed)
 
         self.home_pos = (grid_x, grid_y)
         self.radius = TILE_SIZE // 2 - 2
