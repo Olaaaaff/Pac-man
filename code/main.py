@@ -123,8 +123,6 @@ class Game:
         target_h = int(self.game_content_height * scale)
 
         # Center in the available area
-        # For wide mode, this centers in the left 70%
-        # For normal mode, centers in whole screen
         offset_x = (available_w - target_w) // 2
         offset_y = (available_h - target_h) // 2
 
@@ -275,6 +273,8 @@ class Game:
 
                         # Use unified metrics for accurate mouse detection
                         scale, offset_x, offset_y, _, _, _ = self.get_layout_metrics()
+                        if scale <= 0:
+                            scale = 1  # Safety check
 
                         if self.menu_buttons:
                             # Convert mouse screen pos to game content pos
@@ -303,9 +303,11 @@ class Game:
 
             elif self.game_state == GAME_STATE_START:
                 if event.type == pygame.KEYDOWN:
-                    if event.key in [pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT]:
+                    # Allow Arrow keys, Enter, or Space to start
+                    if event.key in [pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_RETURN, pygame.K_SPACE]:
                         self.game_state = GAME_STATE_READY
                         self.ready_animation_start_time = pygame.time.get_ticks()
+                        self.log_message("Starting Game Sequence...", YELLOW)
                         if self.player:
                             self.player.handle_input(event)
 
@@ -336,8 +338,17 @@ class Game:
     def update(self, dt):
         current_time = pygame.time.get_ticks()
 
+        # Ready Animation Logic (Moved from draw)
+        if self.game_state == GAME_STATE_READY:
+            elapsed = current_time - self.ready_animation_start_time
+            if elapsed > 3000:
+                self.game_state = GAME_STATE_PLAYING
+                self.last_mode_switch_time = current_time
+                self.log_message(
+                    f"Level {self.current_level} Start! Algo: {self.selected_algorithm}", YELLOW)
+
         # Death Animation
-        if self.game_state == GAME_STATE_DEATH:
+        elif self.game_state == GAME_STATE_DEATH:
             anim_done = self.player.update_death_anim()
             if anim_done:
                 self.player.lives -= 1
@@ -617,15 +628,13 @@ class Game:
             # Draw GUI/HUD on top
             self.draw_hud()
 
-            # Center Text Overlays (Ready, Win, Game Over, Pause)
-            # These are centered on the MAP area or Whole Screen?
-            # Whole screen looks better usually.
+            # Center Text Overlays
             center_pos = (SCREEN_WIDTH // 2, self.game_content_height // 2)
 
             if self.game_state == GAME_STATE_START:
                 start_text = WIN_FONT.render("READY!", True, YELLOW)
                 hint_text = SCORE_FONT.render(
-                    "Press ARROW KEYS to Start", True, WHITE)
+                    "Press ARROW KEYS or ENTER to Start", True, WHITE)
                 self.game_content_surface.blit(
                     start_text, start_text.get_rect(center=center_pos))
                 self.game_content_surface.blit(hint_text, hint_text.get_rect(
@@ -694,65 +703,24 @@ class Game:
         # 4. Logs (Sidebar)
         if is_wide:
             display_w, display_h = self.display_surface.get_size()
-            # Draw panel to the right of the game
-            # Panel X starts at offset_x + target_w + constant gap? or just right side
-            # Logic from metrics: available available_w was 0.7 * display_w
-            # So sidebar starts at 0.7 * display_w
             panel_x = int(display_w * 0.7)
             panel_w = int(display_w * 0.3)
             self.draw_logs_panel(panel_x, 0, panel_w, display_h)
 
-    def draw_logs_panel(self, x, y, width, height):
-        # Background
-        rect = pygame.Rect(x, y, width, height)
-        pygame.draw.rect(self.display_surface, (20, 20, 20), rect)
-        pygame.draw.line(self.display_surface, GREY, (x, 0), (x, height), 2)
-
-        # Controls
-        self.draw_controls(x, y + 20, width)
-
-        # Logs
-        log_y_start = height // 2
-
-        title = LOG_FONT.render("Game Logs:", True, GREY)
-        self.display_surface.blit(title, (x + 20, log_y_start))
-
-        start_y = log_y_start + 30
-        line_spacing = 25
-        for i, (msg, color) in enumerate(self.game_logs):
-            text_surf = LOG_FONT.render(msg, True, color)
-            self.display_surface.blit(
-                text_surf, (x + 20, start_y + i * line_spacing))
-
-    def draw_controls(self, x, y, width):
-        title = SCORE_FONT.render("- CONTROLS -", True, YELLOW)
-        self.display_surface.blit(title, (x + 20, y))
-
-        controls = [
-            ("ARROW KEYS", "Move"),
-            ("P or ESC", "Pause/Resume"),
-            ("F11", "Fullscreen"),
-            ("Q", "Quit (in Menu/Pause)"),
-            ("R", "Restart (End Game)"),
-        ]
-
-        curr_y = y + 40
-        for key, action in controls:
-            k_surf = LOG_FONT.render(key, True, CYAN)
-            a_surf = LOG_FONT.render(action, True, WHITE)
-            self.display_surface.blit(k_surf, (x + 20, curr_y))
-            self.display_surface.blit(a_surf, (x + 20, curr_y + 20))
-            curr_y += 50
-
     def run(self):
-        while self.running:
-            dt = self.clock.tick(60)
-            self.handle_input()
-            self.update(dt)
-            self.draw()
-            pygame.display.flip()
-
-        pygame.quit()
+        try:
+            while self.running:
+                dt = self.clock.tick(60)
+                self.handle_input()
+                self.update(dt)
+                self.draw()
+                pygame.display.flip()
+        except Exception as e:
+            print(f"CRITICAL ERROR: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            pygame.quit()
 
 
 if __name__ == "__main__":
