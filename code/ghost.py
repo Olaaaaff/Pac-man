@@ -43,13 +43,16 @@ class Ghost(Entity):
         self.is_eaten = False
         self.on_log = on_log
 
-    def draw(self, surface):
+    def draw(self, surface, flash_white=False):
         if self.is_eaten:
             # 只畫眼睛
             self._draw_eyes(surface)
         else:
             # 1. 畫身體 (上半圓 + 下半方)
-            draw_color = FRIGHTENED_BLUE if self.is_frightened else self.color
+            if self.is_frightened:
+                draw_color = WHITE if flash_white else FRIGHTENED_BLUE
+            else:
+                draw_color = self.color
 
             center = (int(self.pixel_x), int(self.pixel_y))
 

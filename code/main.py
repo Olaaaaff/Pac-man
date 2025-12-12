@@ -431,8 +431,17 @@ while running:
             player.draw(game_content_surface)
 
         if game_state != GAME_STATE_DEATH:
+            # 計算是否需要閃爍 (驚嚇模式最後 2 秒)
+            flash_white = False
+            if frightened_mode:
+                elapsed = pygame.time.get_ticks() - frightened_start_time
+                remaining = FRIGHTENED_DURATION - elapsed
+                if remaining < 2000:
+                    # 每 200ms 切換一次
+                    flash_white = (pygame.time.get_ticks() // 200) % 2 == 0
+
             for ghost in ghosts:
-                ghost.draw(game_content_surface)
+                ghost.draw(game_content_surface, flash_white=flash_white)
 
         # 移除 draw_logs()，改在最後 Layout 階段繪製
 
