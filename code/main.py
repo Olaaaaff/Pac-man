@@ -1,3 +1,4 @@
+# main.py
 import pygame
 import math
 from settings import *  # 匯入所有設定 (顏色, 大小, 地圖)
@@ -46,22 +47,46 @@ def draw_logs(surface):
 # 繪製地圖的函式
 
 
-def draw_map():
+# --- 繪圖優化: 靜態背景快取 ---
+background_surface = None
+
+
+def generate_background():
+    """ 生成靜態牆壁背景 """
+    global background_surface
+    background_surface = pygame.Surface((SCREEN_WIDTH, MAP_HEIGHT))
+    background_surface.fill(BLACK)
+
     for y, row in enumerate(GAME_MAP):
         for x, char in enumerate(row):
             rect_x = x * TILE_SIZE
             rect_y = y * TILE_SIZE
-            if char == TILE_WALL:     # 牆壁
-                pygame.draw.rect(
-                    screen, BLUE, (rect_x, rect_y, TILE_SIZE, TILE_SIZE))
-            elif char == TILE_DOOR:   # 門
-                pygame.draw.line(screen, GREY, (rect_x, rect_y + TILE_SIZE//2),
+
+            if char == TILE_WALL:
+                pygame.draw.rect(background_surface, BLUE,
+                                 (rect_x, rect_y, TILE_SIZE, TILE_SIZE))
+            elif char == TILE_DOOR:
+                pygame.draw.line(background_surface, GREY, (rect_x, rect_y + TILE_SIZE//2),
                                  (rect_x + TILE_SIZE, rect_y + TILE_SIZE//2), 2)
-            elif char == TILE_PELLET:   # 豆豆
+    # 這裡只畫牆和門，豆子必須動態畫
+
+
+def draw_map():
+    # 1. 貼上預先畫好的牆壁背景
+    if background_surface:
+        screen.blit(background_surface, (0, 0))
+
+    # 2. 動態繪製豆子
+    for y, row in enumerate(GAME_MAP):
+        for x, char in enumerate(row):
+            rect_x = x * TILE_SIZE
+            rect_y = y * TILE_SIZE
+
+            if char == TILE_PELLET:
                 center_x = rect_x + TILE_SIZE // 2
                 center_y = rect_y + TILE_SIZE // 2
                 pygame.draw.circle(screen, WHITE, (center_x, center_y), 2)
-            elif char == TILE_POWER_PELLET:   # 大力丸
+            elif char == TILE_POWER_PELLET:
                 center_x = rect_x + TILE_SIZE // 2
                 center_y = rect_y + TILE_SIZE // 2
                 pygame.draw.circle(screen, WHITE, (center_x, center_y), 6)
@@ -81,10 +106,10 @@ frightened_start_time = 0
 global_ghost_mode = MODE_SCATTER
 last_mode_switch_time = 0
 
-path_blinky = [(26, 1)]
-path_pinky = [(1, 1)]
-path_inky = [(26, 29)]
-path_clyde = [(1, 29)]
+path_blinky = [(26, 1), (26, 5), (21, 5), (21, 1)]
+path_pinky = [(1, 1), (1, 5), (6, 5), (6, 1)]
+path_inky = [(26, 29), (26, 26), (21, 26), (21, 29)]
+path_clyde = [(1, 29), (1, 26), (6, 26), (6, 29)]
 
 
 def init_level(new_level=False):
@@ -94,14 +119,21 @@ def init_level(new_level=False):
     # 1. 重置地圖 (必須重新從 settings.MAP_STRINGS 生成，因為原本的被吃掉了)
     # 注意：這裡我們使用 [:] 來原地修改列表內容，確保傳參參照正確
     if new_level:
+        # 需確保 MAP_STRINGS 已經與 settings 更新過的一致
         GAME_MAP[:] = [list(row) for row in MAP_STRINGS]
+        generate_background()  # 重現地圖時，重繪背景
         log_message(f"--- Level {current_level} Started ---")
 
     old_score = 0
+    old_lives = MAX_LIVES
+
     if player:
         old_score = player.score
-    player = Player(13.5, 23)
+        old_lives = player.lives  # 保留生命
+
+    player = Player(14, 23)  # 使用整數座標確保初始對齊 (14, 23)
     player.score = old_score
+    player.lives = old_lives
 
     # 3. 重置鬼魂 (建立新的物件以重置位置和狀態)
     blinky = Ghost(13, 14, RED, ai_mode=AI_CHASE_BLINKY,
@@ -131,15 +163,16 @@ def reset_game():
 
 # 計算總豆子數 (勝利條件)
 total_pellets = sum(row.count(TILE_PELLET) for row in GAME_MAP)
+generate_background()  # 初始生成背景
 log_message(f"Game Loaded! Total pellets:{total_pellets}")
 log_message("Press ARROW KEYS to start...")
 
 
 # * 主迴圈開始
 while running:
-    dt = clock.tick(60)
-    # 處理輸入
+    dt = clock.tick(60)  # dt is milliseconds
 
+    # 處理輸入
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -218,19 +251,29 @@ while running:
                 last_mode_switch_time = current_time
 
         # Player 更新
-        # 把加分統一在主程式
-        player_status = player.update(GAME_MAP)
+        # 這裡傳入 dt
+        player_event = player.update(GAME_MAP, dt)
 
-        if player_status == EVENT_ATE_PELLET:
-            total_pellets -= 1
-            player.score += PELLELETS_POINT
-        elif player_status == EVENT_ATE_POWER_PELLET:  # 吃到大力丸進入驚嚇模式
-            player.score += POWER_PELLET_POINT
-            frightened_mode = True
-            frightened_start_time = pygame.time.get_ticks()
-            log_message("Power Pellet eaten! Ghosts Frightened!")
-            for ghost in ghosts:
-                ghost.start_frightened()
+        # 處理 Player 回傳的意圖 (SoC: 地圖修改移到這裡)
+        if player_event:
+            px, py = player.get_grid_pos()
+
+            # Double check (防止多重觸發)
+            if GAME_MAP[py][px] in [TILE_PELLET, TILE_POWER_PELLET]:
+                # 這裡真正移除豆子
+                if player_event == EVENT_ATE_PELLET:
+                    GAME_MAP[py][px] = TILE_EMPTY
+                    total_pellets -= 1
+                    player.score += PELLELETS_POINT
+
+                elif player_event == EVENT_ATE_POWER_PELLET:
+                    GAME_MAP[py][px] = TILE_EMPTY
+                    player.score += POWER_PELLET_POINT
+                    frightened_mode = True
+                    frightened_start_time = pygame.time.get_ticks()
+                    log_message("Power Pellet eaten! Ghosts Frightened!")
+                    for ghost in ghosts:
+                        ghost.start_frightened()
 
         # 勝利檢查
         if total_pellets <= 0:
@@ -272,6 +315,7 @@ while running:
         screen.blit(opt3, (50, SCREEN_HEIGHT//2 + 80))
 
     else:
+        # 使用新的繪圖函式 (內部有 cache)
         draw_map()
 
         player.draw(screen)
@@ -298,6 +342,10 @@ while running:
 
             screen.blit(start_text, r1)
             screen.blit(hint_text, r2)
+
+            # Reset Player Position visual bug fix (ensure it draws correctly on start)
+            if player:
+                player.draw(screen)
 
         elif game_state == GAME_STATE_GAME_OVER:
             text = GAME_OVER_FONT.render("GAME OVER", True, RED)

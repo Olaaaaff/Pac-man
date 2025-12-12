@@ -1,23 +1,20 @@
 # player.py
 import pygame
-from settings import *  # 匯入 TILE_SIZE, YELLOW, SCREEN_WIDTH 等
+from settings import *
+from entity import Entity
 
 
-class Player:
+class Player(Entity):
     def __init__(self, grid_x, grid_y):
-        self.grid_x = grid_x
-        self.grid_y = grid_y
-        self.pixel_x = (self.grid_x * TILE_SIZE) + (TILE_SIZE // 2)
-        self.pixel_y = (self.grid_y * TILE_SIZE) + (TILE_SIZE // 2)
+        super().__init__(grid_x, grid_y, SPEED)
         self.radius = TILE_SIZE // 2 - 2
-        self.speed = SPEED
-        self.direction = (0, 0)
         self.next_direction = (0, 0)
         self.score = 0
+        self.lives = MAX_LIVES
 
-    def draw(self, surface):    # 先畫一個黃色圓形當小精靈
+    def draw(self, surface):
         pygame.draw.circle(
-            surface, YELLOW, (self.pixel_x, self.pixel_y), self.radius)
+            surface, YELLOW, (int(self.pixel_x), int(self.pixel_y)), self.radius)
 
     def handle_input(self, event):
         if event.type == pygame.KEYDOWN:
@@ -30,105 +27,90 @@ class Player:
             elif event.key == pygame.K_RIGHT:
                 self.next_direction = (1, 0)
 
-    def update(self, game_map):
-        """ 更新玩家狀態。返回 'ATE_PELLET', 'ATE_POWER_PELLET', 或 None """
+    def update(self, game_map, dt=0):
+        """ 
+        更新玩家狀態
+        dt: delta time in milliseconds (如果有的話)
+        回傳: 事件字串 (ATE_PELLET, etc) 或 None
+        """
+        dt_seconds = dt / 1000.0 if dt > 0 else None
 
-        # 檢查是否在格子中心 (分開檢查 X 和 Y)
-        dist_x = abs((self.pixel_x - (TILE_SIZE // 2)) % TILE_SIZE)
-        dist_y = abs((self.pixel_y - (TILE_SIZE // 2)) % TILE_SIZE)
+        # 1. 檢查是否在格子中心 (用於轉彎判定)
+        centered = self.is_centered()
 
-        is_centered_x = dist_x < self.speed
-        is_centered_y = dist_y < self.speed
-
-        # 計算目前的整數網格座標
-        curr_grid_x = int((self.pixel_x - (TILE_SIZE // 2)) // TILE_SIZE)
-        curr_grid_y = int((self.pixel_y - (TILE_SIZE // 2)) // TILE_SIZE)
-        self.grid_x = curr_grid_x
-        self.grid_y = curr_grid_y
-
-        # 吃豆子邏輯 (加入邊界檢查)
-        if 0 <= curr_grid_y < len(game_map) and 0 <= curr_grid_x < len(game_map[curr_grid_y]):
-            current_tile = game_map[curr_grid_y][curr_grid_x]
-            if current_tile == TILE_PELLET:
-                game_map[curr_grid_y][curr_grid_x] = TILE_EMPTY
-                return EVENT_ATE_PELLET
-            elif current_tile == TILE_POWER_PELLET:
-                game_map[curr_grid_y][curr_grid_x] = TILE_EMPTY
-                return EVENT_ATE_POWER_PELLET
-
-        # --- 轉彎邏輯 (修復 IndexError) ---
+        # 2. 嘗試轉彎 (如果玩家有按下方向鍵)
         if self.next_direction != (0, 0):
-            # 水平轉彎 (左/右)
-            if self.next_direction[1] == 0:
-                if is_centered_y:
-                    next_grid_x = curr_grid_x + self.next_direction[0]
+            # 只有在中心點附近才能轉彎，或者是在反向移動
+            # 目前 Pac-Man 規則通常允許隨時反向，但轉彎需要對齊
 
-                    # 安全檢查：是否為門
-                    is_door = False
-                    if 0 <= curr_grid_y < len(game_map) and 0 <= next_grid_x < len(game_map[curr_grid_y]):
-                        if game_map[curr_grid_y][next_grid_x] == TILE_DOOR:
-                            is_door = True
+            # 檢查是否反向 (Reversing)
+            is_reverse = (self.next_direction[0] == -self.direction[0] and
+                          self.next_direction[1] == -self.direction[1])
 
-                    # 只有當 "不是牆壁" 且 "不是門" 時才轉彎
-                    if not is_wall(game_map, next_grid_x, curr_grid_y) and not is_door:
-                        self.direction = self.next_direction
-                        self.next_direction = (0, 0)
-                        self.pixel_y = (
-                            curr_grid_y * TILE_SIZE) + (TILE_SIZE // 2)
+            if is_reverse or centered:
+                # 檢查轉彎後的目標是否為牆
+                curr_x, curr_y = self.get_grid_pos()  # 確保是整數
+                next_grid_x = curr_x + self.next_direction[0]
+                next_grid_y = curr_y + self.next_direction[1]
 
-            # 垂直轉彎 (上/下)
-            elif self.next_direction[0] == 0:
-                if is_centered_x:
-                    next_grid_y = curr_grid_y + self.next_direction[1]
+                can_turn = True
+                if is_wall(game_map, next_grid_x, next_grid_y):
+                    can_turn = False
 
-                    # 安全檢查：是否為門
-                    is_door = False
-                    if 0 <= next_grid_y < len(game_map) and 0 <= curr_grid_x < len(game_map[next_grid_y]):
-                        if game_map[next_grid_y][curr_grid_x] == TILE_DOOR:
-                            is_door = True
+                # 特殊檢查: 門不能進 (除非有特定邏輯，一般 Play 不能進鬼屋)
+                if 0 <= next_grid_y < len(game_map) and 0 <= next_grid_x < len(game_map[0]):
+                    if game_map[next_grid_y][next_grid_x] == TILE_DOOR:
+                        can_turn = False
 
-                    if not is_wall(game_map, curr_grid_x, next_grid_y) and not is_door:
-                        self.direction = self.next_direction
-                        self.next_direction = (0, 0)
-                        self.pixel_x = (
-                            curr_grid_x * TILE_SIZE) + (TILE_SIZE // 2)
+                if can_turn:
+                    self.direction = self.next_direction
+                    self.next_direction = (0, 0)
+                    # 如果不是反向，而是轉彎，強制對齊網格
+                    if not is_reverse:
+                        self.snap_to_grid()
 
-        # --- 移動與撞牆檢查 (修復 IndexError) ---
+        # 3. 移動前檢查前方障礙
         can_move = True
+        curr_x, curr_y = self.get_grid_pos()
 
-        # 如果正在水平移動 (左/右)
-        if self.direction[1] == 0 and self.direction[0] != 0:
-            if is_centered_x:
-                next_grid_x = curr_grid_x + self.direction[0]
+        # 預測下一步的網格位置
+        # 注意：這裡不只檢查相鄰，而是檢查「前方」
+        # 如果已經貼牆，就不移動
 
-                # 只有當座標在地圖的 "實際範圍內" 時，才檢查牆壁與門
-                if 0 <= curr_grid_y < len(game_map) and 0 <= next_grid_x < len(game_map[curr_grid_y]):
-                    if is_wall(game_map, next_grid_x, curr_grid_y) or game_map[curr_grid_y][next_grid_x] == TILE_DOOR:
-                        can_move = False
-                        self.pixel_x = (
-                            curr_grid_x * TILE_SIZE) + (TILE_SIZE // 2)
-                # 註：如果超出範圍 (隧道)，這裡不會設 can_move = False，所以允許通過
+        # 簡單判定：如果 "不在中心"，通常允許走到中心
+        if centered:
+            next_grid_x = curr_x + self.direction[0]
+            next_grid_y = curr_y + self.direction[1]
 
-        # 如果正在垂直移動 (上/下)
-        elif self.direction[0] == 0 and self.direction[1] != 0:
-            if is_centered_y:
-                next_grid_y = curr_grid_y + self.direction[1]
-
-                # 只有當座標在地圖的 "實際範圍內" 時，才檢查牆壁與門
-                if 0 <= next_grid_y < len(game_map) and 0 <= curr_grid_x < len(game_map[next_grid_y]):
-                    if is_wall(game_map, curr_grid_x, next_grid_y) or game_map[next_grid_y][curr_grid_x] == TILE_DOOR:
-                        can_move = False
-                        self.pixel_y = (
-                            curr_grid_y * TILE_SIZE) + (TILE_SIZE // 2)
+            # 邊界檢查 (防止 Index Error) - 雖然 move 會 wrap，但這裡檢查牆壁
+            if 0 <= next_grid_y < len(game_map) and 0 <= next_grid_x < len(game_map[0]):
+                # 撞牆或撞門
+                if is_wall(game_map, next_grid_x, next_grid_y):
+                    can_move = False
+                if game_map[next_grid_y][next_grid_x] == TILE_DOOR:
+                    can_move = False
+            else:
+                # 超出地圖範圍，如果是隧道 (左右) 則允許
+                # 若是上下超出則不允許 (照理說不會發生)
+                if not (next_grid_x < 0 or next_grid_x >= len(game_map[0])):
+                    can_move = False
 
         if can_move:
-            self.pixel_x += self.direction[0] * self.speed
-            self.pixel_y += self.direction[1] * self.speed
+            self.move(dt_seconds)
+        else:
+            # 撞牆時，強制對齊中心避免微小飄移
+            self.snap_to_grid()
 
-        # 隧道處理 (超出邊界後瞬間移動到另一邊)
-        if self.pixel_x < -TILE_SIZE//2:
-            self.pixel_x = SCREEN_WIDTH + TILE_SIZE//2
-        elif self.pixel_x > SCREEN_WIDTH + TILE_SIZE//2:
-            self.pixel_x = -TILE_SIZE//2
+        # 4. 吃豆子判定 (不修改地圖，只回傳事件)
+        # 取得最新的 grid 座標
+        gx, gy = self.get_grid_pos()
+
+        # 邊界保護
+        if 0 <= gy < len(game_map) and 0 <= gx < len(game_map[0]):
+            tile = game_map[gy][gx]
+            if tile == TILE_PELLET:
+                return EVENT_ATE_PELLET
+            elif tile == TILE_POWER_PELLET:
+                return EVENT_ATE_POWER_PELLET
 
         return None

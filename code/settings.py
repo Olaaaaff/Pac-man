@@ -4,10 +4,11 @@ import pygame
 # * 遊戲架構有關常數
 # 遊戲視窗
 TILE_SIZE = 20
-MAP_HEIGHT = 36 * TILE_SIZE
+MAP_HEIGHT = 36 * TILE_SIZE  # 720
 LOG_HEIGHT = 140
-SCREEN_WIDTH = 28 * TILE_SIZE
+SCREEN_WIDTH = 28 * TILE_SIZE  # 560
 SCREEN_HEIGHT = MAP_HEIGHT + LOG_HEIGHT
+
 
 # 顏色定義
 BLACK = (0, 0, 0)
@@ -32,10 +33,13 @@ LOG_FONT = pygame.font.Font(None, 20)
 # * 運作常數
 
 # 時間與速度常數
-SPEED = 2  # 玩家與鬼的基本速度
+SPEED = 2  # 玩家與鬼的基本速度 (每幀像素)
+# 註: 若改為 dt 基礎移動，需重新校正速度值 (例如: 120 pixels/sec)
+
 FRIGHTENED_DURATION = 7000  # 7 秒
 SCATTER_DURATION = 7000   # 散開 7 秒
 CHASE_DURATION = 20000    # 追逐 20 秒
+
 
 # 新增生命值常數
 MAX_LIVES = 3
@@ -68,6 +72,12 @@ MODE_FRIGHTENED = "FRIGHTENED"
 MODE_GO_HOME = "GO_HOME"
 MODE_EXIT_HOUSE = "EXIT_HOUSE"
 MODE_WAITING = "WAITING"
+
+# Magic Numbers (地點常數)
+GHOST_HOUSE_EXIT_POS = (13, 11)  # 鬼屋出口座標 (grid_x, grid_y)
+GHOST_HOUSE_Y_THRESHOLD = 11     # 判定是否出門的 Y 軸門檻
+TUNNEL_LEFT_GRID_X = 0
+TUNNEL_RIGHT_GRID_X = 27
 
 # 個性化追逐模式 (Personalities)
 AI_CHASE_BLINKY = "CHASE_BLINKY"
@@ -121,6 +131,10 @@ MAP_STRINGS = [
     "WWWWWWWWWWWWWWWWWWWWWWWWWWWW",
     " ", " ", " ", " ", " "
 ]
+
+# 2. 自動補齊地圖字串長度 (避免 IndexError)
+MAX_MAP_WIDTH = max(len(row) for row in MAP_STRINGS)
+MAP_STRINGS = [row.ljust(MAX_MAP_WIDTH, ' ') for row in MAP_STRINGS]
 
 # 將字串地圖轉換成可修改的列表 (List)
 GAME_MAP = [list(row) for row in MAP_STRINGS]
