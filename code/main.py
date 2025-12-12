@@ -205,8 +205,25 @@ while running:
 
                     # 預先處理第一下輸入 (讓玩家可以先按住方向鍵)
                     player.handle_input(event)
+        elif game_state == GAME_STATE_PAUSED:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_p or event.key == pygame.K_ESCAPE:
+                    game_state = GAME_STATE_PLAYING
+                    log_message("Game Resumed")
+                elif event.key == pygame.K_q:
+                    game_state = GAME_STATE_MENU
+                    reset_game()
+                elif event.key == pygame.K_r:
+                    # 選項：允許暫停時重新開始
+                    reset_game()
         elif game_state == GAME_STATE_PLAYING:
             player.handle_input(event)
+            # 暫停鍵偵測
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_p or event.key == pygame.K_ESCAPE:
+                    game_state = GAME_STATE_PAUSED
+                    log_message("Game Paused")
+
         elif game_state in [GAME_STATE_GAME_OVER, GAME_STATE_WIN]:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:  # 按下 R 鍵
@@ -406,6 +423,37 @@ while running:
         elif game_state == GAME_STATE_DEATH:
             # 死亡動畫狀態，只畫地圖和正在變化的 player
             player.draw(screen)
+
+        elif game_state == GAME_STATE_PAUSED:
+            # 暫停狀態：保持原本畫面，疊加半透明黑底與選單
+            draw_map()
+            player.draw(screen)
+            for ghost in ghosts:
+                ghost.draw(screen)
+            draw_logs(screen)
+
+            # 繪製半透明遮罩
+            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+            overlay.fill(BLACK)
+            overlay.set_alpha(128)  # 半透明 (0-255)
+            screen.blit(overlay, (0, 0))
+
+            # 繪製暫停文字與說明
+            p_text = WIN_FONT.render("PAUSED", True, YELLOW)
+            p_rect = p_text.get_rect(center=center_pos)
+            screen.blit(p_text, p_rect)
+
+            resume_text = SCORE_FONT.render(
+                "Press P / ESC to Resume", True, WHITE)
+            r_rect = resume_text.get_rect(
+                center=(center_pos[0], center_pos[1] + 40))
+            screen.blit(resume_text, r_rect)
+
+            quit_text = SCORE_FONT.render(
+                "Press Q to Quit to Menu", True, WHITE)
+            q_rect = quit_text.get_rect(
+                center=(center_pos[0], center_pos[1] + 70))
+            screen.blit(quit_text, q_rect)
 
         elif game_state == GAME_STATE_GAME_OVER:
             text = GAME_OVER_FONT.render("GAME OVER", True, RED)

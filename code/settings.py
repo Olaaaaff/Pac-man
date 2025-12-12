@@ -58,6 +58,7 @@ GAME_STATE_GAME_OVER = "GAME_OVER"
 GAME_STATE_WIN = "WIN"
 GAME_STATE_READY = "READY_ANIMATION"  # 新增 Ready 動畫狀態
 GAME_STATE_DEATH = "DEATH_ANIMATION"  # 新增死亡動畫狀態
+GAME_STATE_PAUSED = "PAUSED"  # 新增暫停狀態
 
 # 鬼魂全域/行為模式 (Ghost AI Modes)
 # 鬼演算法
