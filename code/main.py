@@ -155,6 +155,12 @@ def draw_map():
         pygame.draw.line(game_content_surface, GREEN,
                          (fx + 4, fy + 6), (fx, fy - 6), 2)
 
+        # 繪製倒數計時 (顯示在水果上方)
+        elapsed = pygame.time.get_ticks() - fruit_spawn_time
+        remaining_sec = max(0, 10 - elapsed // 1000)
+        timer_text = LOG_FONT.render(f"{remaining_sec}s", True, WHITE)
+        game_content_surface.blit(timer_text, (fx - 10, fy - 25))
+
 
 player_lives = MAX_LIVES
 current_level = 1
@@ -180,9 +186,10 @@ level_frightened_duration = FRIGHTENED_DURATION  # 當前關卡的受驚持續�
 fruit_active = False
 fruit_spawn_time = 0
 fruit_score = 100
-fruit_pos = (14, 17)  # 鬼屋下方
+fruit_pos = (14, 20)  # 改到確定的空地 (原 (14, 17) 可能是牆)
 starting_pellets = 0
 fruits_spawned = 0  # 紀錄該關卡已生成水果次數 (避免重複生成)
+initial_log_shown = False  # 紀錄是否已顯示初始模式提示
 
 path_blinky = [(26, 1), (26, 5), (21, 5), (21, 1)]
 path_pinky = [(1, 1), (1, 5), (6, 5), (6, 1)]
@@ -192,7 +199,7 @@ path_clyde = [(1, 29), (1, 26), (6, 26), (6, 29)]
 
 def init_level(new_level=False):
     """ 重置遊戲所有狀態，回到初始畫面 """
-    global player, ghosts, total_pellets, game_state, frightened_mode, global_ghost_mode, last_mode_switch_time, GAME_MAP, game_logs, frightened_start_time, level_frightened_duration, fruit_active, starting_pellets, fruits_spawned
+    global player, ghosts, total_pellets, game_state, frightened_mode, global_ghost_mode, last_mode_switch_time, GAME_MAP, game_logs, frightened_start_time, level_frightened_duration, fruit_active, starting_pellets, fruits_spawned, initial_log_shown
 
     # 1. 重置地圖 (必須重新從 settings.MAP_STRINGS 生成，因為原本的被吃掉了)
     # 注意：這裡我們使用 [:] 來原地修改列表內容，確保傳參參照正確
@@ -220,14 +227,17 @@ def init_level(new_level=False):
         starting_pellets = total_pellets
         fruits_spawned = 0
         fruit_active = False
+        initial_log_shown = False  # 重置 Log 提示標記
         log_message(f"Total pellets: {total_pellets}", WHITE)
 
     old_score = 0
     old_lives = MAX_LIVES
 
     if player:
+        # 這裡很關鍵：如果是死掉重來 (new_level=False)，要繼承生命與分數
         old_score = player.score
-        old_lives = player.lives  # 保留生命
+        old_lives = player.lives
+        # log_message(f"DEBUG: Inherited Lives: {old_lives}", GREY)
 
     player = Player(14, 23, speed=level_speed)  # 使用整數座標確保初始對齊 (14, 23)
     player.score = old_score
@@ -346,6 +356,7 @@ while running:
                 init_level(new_level=False)
                 game_state = GAME_STATE_READY
                 ready_animation_start_time = pygame.time.get_ticks()
+            else:
                 game_state = GAME_STATE_GAME_OVER
                 log_message("Game Over.", RED)
                 save_high_score(high_score)  # 存檔
@@ -358,8 +369,10 @@ while running:
             time_passed = current_time - last_mode_switch_time
 
             # 確保初始提示
-            if last_mode_switch_time == 0 and time_passed > 100:  # 稍微延遲一點確保顯示
+            # 確保初始提示 (使用 flag)
+            if not initial_log_shown and time_passed > 100:
                 log_message(f">> Init Mode: {global_ghost_mode}", YELLOW)
+                initial_log_shown = True  # 標記已顯示
 
             if global_ghost_mode == MODE_SCATTER and time_passed > SCATTER_DURATION:
                 global_ghost_mode = MODE_CHASE
@@ -455,7 +468,7 @@ while running:
                     fx, fy = fruit_pos[0] * TILE_SIZE + \
                         TILE_SIZE//2, fruit_pos[1] * TILE_SIZE + TILE_SIZE//2
                     dist = math.hypot(player.pixel_x - fx, player.pixel_y - fy)
-                    if dist < player.radius + 10:
+                    if dist < player.radius + 15:  # 加大判定範圍
                         fruit_active = False
                         player.score += fruit_score
                         if player.score > high_score:
