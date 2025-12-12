@@ -92,21 +92,56 @@ class Game:
             self.game_logs.pop(0)
 
     def generate_background(self):
-        """ Generate static wall background """
+        """ Generate static wall background with connected lines """
         self.background_surface = pygame.Surface((SCREEN_WIDTH, MAP_HEIGHT))
         self.background_surface.fill(BLACK)
 
-        # Use the initial MAP_STRINGS from settings to draw walls
+        # Wall color and thickness
+        wall_color = BLUE
+        line_width = 4
+
+        # Helper to check if a tile is a wall
+        rows = len(MAP_STRINGS)
+        cols = len(MAP_STRINGS[0])
+
+        def is_wall_tile(x, y):
+            if 0 <= y < rows and 0 <= x < cols:
+                return MAP_STRINGS[y][x] == TILE_WALL
+            return False
+
         for y, row in enumerate(MAP_STRINGS):
             for x, char in enumerate(row):
-                rect_x = x * TILE_SIZE
-                rect_y = y * TILE_SIZE
-
                 if char == TILE_WALL:
-                    pygame.draw.rect(self.background_surface, BLUE,
-                                     (rect_x, rect_y, TILE_SIZE, TILE_SIZE))
+                    # Center of the current tile
+                    cx = x * TILE_SIZE + TILE_SIZE // 2
+                    cy = y * TILE_SIZE + TILE_SIZE // 2
+
+                    # Draw a small joint circle at center to smooth connections
+                    pygame.draw.circle(self.background_surface,
+                                       wall_color, (cx, cy), line_width // 2)
+
+                    # Check neighbors and draw connections
+                    # UP
+                    if is_wall_tile(x, y - 1):
+                        pygame.draw.line(
+                            self.background_surface, wall_color, (cx, cy), (cx, cy - TILE_SIZE//2), line_width)
+                    # DOWN
+                    if is_wall_tile(x, y + 1):
+                        pygame.draw.line(
+                            self.background_surface, wall_color, (cx, cy), (cx, cy + TILE_SIZE//2), line_width)
+                    # LEFT
+                    if is_wall_tile(x - 1, y):
+                        pygame.draw.line(
+                            self.background_surface, wall_color, (cx, cy), (cx - TILE_SIZE//2, cy), line_width)
+                    # RIGHT
+                    if is_wall_tile(x + 1, y):
+                        pygame.draw.line(
+                            self.background_surface, wall_color, (cx, cy), (cx + TILE_SIZE//2, cy), line_width)
+
                 elif char == TILE_DOOR:
-                    pygame.draw.line(self.background_surface, GREY, (rect_x, rect_y + TILE_SIZE//2),
+                    rect_x = x * TILE_SIZE
+                    rect_y = y * TILE_SIZE
+                    pygame.draw.line(self.background_surface, PINK, (rect_x, rect_y + TILE_SIZE//2),
                                      (rect_x + TILE_SIZE, rect_y + TILE_SIZE//2), 2)
 
     def init_level(self, new_level=False):
