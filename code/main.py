@@ -10,39 +10,88 @@ pygame.init()
 pygame.font.init()
 
 # 設定視窗 (變數來自 settings.py)
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption("Pygame Pac-Man")
+# display_surface 是實際的視窗
+WINDOW_WIDTH = int(SCREEN_WIDTH * 1.0)  # 預設視窗寬度
+WINDOW_HEIGHT = int(SCREEN_HEIGHT * 1.0)  # 預設視窗高度
+display_surface = pygame.display.set_mode(
+    (WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
+pygame.display.set_caption("Pygame Pac-Man (F11: Fullscreen)")
+
+# (改動) 分離畫布：game_content_surface 只包含地圖與遊戲內容
+GAME_CONTENT_HEIGHT = MAP_HEIGHT  # 720
+game_content_surface = pygame.Surface((SCREEN_WIDTH, GAME_CONTENT_HEIGHT))
 clock = pygame.time.Clock()
 
 # --- 日誌系統 ---
 game_logs = []  # 儲存字串的列表
-MAX_LOGS = 7   # 最多顯示幾行
+MAX_LOGS = 6   # 減少行數以確保不會超出 (Log高度 140, 字體 20, 間距 ~20 -> 7行極限, 保險設6)
 
 
-def log_message(message):
+def log_message(message, color=WHITE):
     """ 新增一條訊息到日誌區，並保持長度限制 """
     # 加上時間戳記 (秒數)
     ticks = pygame.time.get_ticks() // 1000
     formatted_msg = f"[{ticks}s] {message}"
     print(formatted_msg)  # 保留終端機輸出方便除錯
-    game_logs.append(formatted_msg)
+    game_logs.append((formatted_msg, color))  # 存成 Tuple (文字, 顏色)
     if len(game_logs) > MAX_LOGS:
         game_logs.pop(0)  # 移除最舊的
 
 
-def draw_logs(surface):
-    """ 繪製底部日誌區 """
-    # 1. 畫背景框 (在原本的地圖下方)
-    log_area_rect = pygame.Rect(0, MAP_HEIGHT, SCREEN_WIDTH, LOG_HEIGHT)
-    pygame.draw.rect(surface, (20, 20, 20), log_area_rect)  # 深灰色背景
-    pygame.draw.line(surface, WHITE, (0, MAP_HEIGHT),
-                     (SCREEN_WIDTH, MAP_HEIGHT), 2)  # 分隔線
+def draw_controls_on_surface(target_surface, x, y, width, height):
+    """ 繪製操作說明面板 """
+    # 背景
+    rect = pygame.Rect(x, y, width, height)
+    pygame.draw.rect(target_surface, (20, 20, 20), rect)
+    pygame.draw.rect(target_surface, BLUE, rect, 2)  # 藍色外框
+
+    # 標題
+    title = SCORE_FONT.render("- CONTROLS -", True, YELLOW)
+    target_surface.blit(title, (x + 20, y + 15))
+
+    # 說明列表
+    controls = [
+        ("ARROW KEYS", "Move"),
+        ("P or ESC", "Pause/Resume"),
+        ("F11", "Fullscreen"),
+        ("Q", "Quit (in Menu/Pause)"),
+        ("R", "Restart (End Game)"),
+    ]
+
+    start_y = y + 50
+    for key, action in controls:
+        key_surf = LOG_FONT.render(key, True, CYAN)
+        action_surf = LOG_FONT.render(action, True, WHITE)
+
+        target_surface.blit(key_surf, (x + 20, start_y))
+        target_surface.blit(action_surf, (x + 20, start_y + 20))
+        start_y += 50
+
+
+def draw_logs_on_surface(target_surface, x, y, width, height):
+    """ 
+    在指定的 Surface 區域繪製日誌 
+    x, y: 相對 target_surface 的起始座標
+    """
+    # 1. 畫背景框
+    log_rect = pygame.Rect(x, y, width, height)
+    pygame.draw.rect(target_surface, (20, 20, 20), log_rect)
+    pygame.draw.rect(target_surface, GREY, log_rect, 2)  # 外框
+
+    # 標題
+    title = LOG_FONT.render("Game Logs:", True, GREY)
+    target_surface.blit(title, (x + 5, y + 5))
 
     # 2. 繪製文字
-    start_y = MAP_HEIGHT + 10
-    for i, msg in enumerate(game_logs):
-        text_surf = LOG_FONT.render(msg, True, WHITE)
-        surface.blit(text_surf, (10, start_y + i * 18))  # 每行間距 18
+    start_y = y + 25
+    line_spacing = 20
+    for i, (msg, color) in enumerate(game_logs):  # 解包 (msg, color)
+        # 防止超出邊界
+        if start_y + i * line_spacing > y + height - 10:
+            break
+
+        text_surf = LOG_FONT.render(msg, True, color)
+        target_surface.blit(text_surf, (x + 10, start_y + i * line_spacing))
 
 # 繪製地圖的函式
 
@@ -74,7 +123,7 @@ def generate_background():
 def draw_map():
     # 1. 貼上預先畫好的牆壁背景
     if background_surface:
-        screen.blit(background_surface, (0, 0))
+        game_content_surface.blit(background_surface, (0, 0))
 
     # 2. 動態繪製豆子
     for y, row in enumerate(GAME_MAP):
@@ -85,11 +134,13 @@ def draw_map():
             if char == TILE_PELLET:
                 center_x = rect_x + TILE_SIZE // 2
                 center_y = rect_y + TILE_SIZE // 2
-                pygame.draw.circle(screen, WHITE, (center_x, center_y), 2)
+                pygame.draw.circle(game_content_surface,
+                                   WHITE, (center_x, center_y), 2)
             elif char == TILE_POWER_PELLET:
                 center_x = rect_x + TILE_SIZE // 2
                 center_y = rect_y + TILE_SIZE // 2
-                pygame.draw.circle(screen, WHITE, (center_x, center_y), 6)
+                pygame.draw.circle(game_content_surface, WHITE,
+                                   (center_x, center_y), 6)
 
 
 player_lives = MAX_LIVES
@@ -126,7 +177,7 @@ def init_level(new_level=False):
         # 需確保 MAP_STRINGS 已經與 settings 更新過的一致
         GAME_MAP[:] = [list(row) for row in MAP_STRINGS]
         generate_background()  # 重現地圖時，重繪背景
-        log_message(f"--- Level {current_level} Started ---")
+        log_message(f"--- Level {current_level} Started ---", YELLOW)
 
     old_score = 0
     old_lives = MAX_LIVES
@@ -154,7 +205,7 @@ def init_level(new_level=False):
 
     if new_level:
         total_pellets = sum(row.count(TILE_PELLET) for row in GAME_MAP)
-        log_message(f"Total pellets: {total_pellets}")
+        log_message(f"Total pellets: {total_pellets}", WHITE)
 
 
 def reset_game():
@@ -162,17 +213,18 @@ def reset_game():
     player_lives = MAX_LIVES
     current_level = 1
     game_state = GAME_STATE_MENU
-    log_message("Game Reset to Menu")
+    log_message("Game Reset to Menu", YELLOW)
 
 
 # 計算總豆子數 (勝利條件)
 total_pellets = sum(row.count(TILE_PELLET) for row in GAME_MAP)
 generate_background()  # 初始生成背景
-log_message(f"Game Loaded! Total pellets:{total_pellets}")
-log_message("Press ARROW KEYS to start...")
+log_message(f"Game Loaded! Total pellets:{total_pellets}", GREEN)
+log_message("Press ARROW KEYS to start...", YELLOW)
 
 
 # * 主迴圈開始
+is_fullscreen = False
 while running:
     dt = clock.tick(60)  # dt is milliseconds
 
@@ -180,6 +232,16 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_F11:
+                is_fullscreen = not is_fullscreen
+                if is_fullscreen:
+                    display_surface = pygame.display.set_mode(
+                        (0, 0), pygame.FULLSCREEN)
+                else:
+                    display_surface = pygame.display.set_mode(
+                        (WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
 
         if game_state == GAME_STATE_MENU:
             if event.type == pygame.KEYDOWN:
@@ -209,7 +271,7 @@ while running:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_p or event.key == pygame.K_ESCAPE:
                     game_state = GAME_STATE_PLAYING
-                    log_message("Game Resumed")
+                    log_message("Game Resumed", GREEN)
                 elif event.key == pygame.K_q:
                     game_state = GAME_STATE_MENU
                     reset_game()
@@ -222,7 +284,7 @@ while running:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_p or event.key == pygame.K_ESCAPE:
                     game_state = GAME_STATE_PAUSED
-                    log_message("Game Paused")
+                    log_message("Game Paused", YELLOW)
 
         elif game_state in [GAME_STATE_GAME_OVER, GAME_STATE_WIN]:
             if event.type == pygame.KEYDOWN:
@@ -236,13 +298,13 @@ while running:
         if anim_done:
             player.lives -= 1
             if player.lives > 0:
-                log_message(f"Lives: {player.lives}, Resetting...")
+                log_message(f"Lives: {player.lives}, Resetting...", YELLOW)
                 init_level(new_level=False)
                 game_state = GAME_STATE_READY
                 ready_animation_start_time = pygame.time.get_ticks()
             else:
                 game_state = GAME_STATE_GAME_OVER
-                log_message("Game Over.")
+                log_message("Game Over.", RED)
 
     if game_state == GAME_STATE_PLAYING:
 
@@ -251,15 +313,19 @@ while running:
         if not frightened_mode:
             time_passed = current_time - last_mode_switch_time
 
+            # 確保初始提示
+            if last_mode_switch_time == 0 and time_passed > 100:  # 稍微延遲一點確保顯示
+                log_message(f">> Init Mode: {global_ghost_mode}", YELLOW)
+
             if global_ghost_mode == MODE_SCATTER and time_passed > SCATTER_DURATION:
                 global_ghost_mode = MODE_CHASE
                 last_mode_switch_time = current_time
-                log_message(">> Mode Switch: CHASE")
+                log_message(">> Mode Switch: CHASE", RED)
 
             elif global_ghost_mode == MODE_CHASE and time_passed > CHASE_DURATION:
                 global_ghost_mode = MODE_SCATTER
                 last_mode_switch_time = current_time
-                log_message(">> Mode Switch: SCATTER")
+                log_message(">> Mode Switch: SCATTER", GREEN)
 
         # 更新所有鬼的狀態 (將全域模式套用到每隻鬼身上)
         # Inky 需要 Blinky 的位置來計算夾擊
@@ -281,7 +347,7 @@ while running:
         if frightened_mode:
             if current_time - frightened_start_time > FRIGHTENED_DURATION:
                 frightened_mode = False
-                log_message("Frightened mode ended. Ghosts normal.")
+                log_message("Frightened mode ended. Ghosts normal.", WHITE)
                 for ghost in ghosts:
                     ghost.end_frightened()
                 last_mode_switch_time = current_time
@@ -307,14 +373,14 @@ while running:
                     player.score += POWER_PELLET_POINT
                     frightened_mode = True
                     frightened_start_time = pygame.time.get_ticks()
-                    log_message("Power Pellet eaten! Ghosts Frightened!")
+                    log_message("Power Pellet eaten! Ghosts Frightened!", CYAN)
                     for ghost in ghosts:
                         ghost.start_frightened()
 
         # 勝利檢查
         if total_pellets <= 0:
             game_state = GAME_STATE_WIN
-            log_message("VICTORY! All pellets cleared!")
+            log_message("VICTORY! All pellets cleared!", GREEN)
 
         # 碰撞偵測
         for ghost in ghosts:
@@ -331,148 +397,230 @@ while running:
                     player.score += GHOST_POINT
                 elif not ghost.is_eaten:    # 防止玩家碰到已經被吃掉，正在跑回重生的鬼時誤觸發遊戲結束
                     # 被鬼抓
-                    log_message("Ghost collision!")
+                    log_message("Ghost collision!", RED)
                     game_state = GAME_STATE_DEATH
                     player.start_death_anim()
 
-    # 畫面繪製
-    screen.fill(BLACK)
+    # -------------------------------------------------------------
+    # 3. 繪製階段 (Render Phase)
+    # -------------------------------------------------------------
+
+    # A. 先將遊戲內容畫到 game_content_surface (560x720)
+    game_content_surface.fill(BLACK)
 
     if game_state == GAME_STATE_MENU:
         title = WIN_FONT.render("PAC-MAN AI SELECT", True, YELLOW)
-        t_rect = title.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//3))
-        screen.blit(title, t_rect)
+        t_rect = title.get_rect(
+            center=(SCREEN_WIDTH//2, GAME_CONTENT_HEIGHT//3))
+        game_content_surface.blit(title, t_rect)
 
         opt1 = SCORE_FONT.render("Press 1 for Greedy (Shortest)", True, WHITE)
         opt2 = SCORE_FONT.render("Press 2 for BFS (Wide Search)", True, WHITE)
         opt3 = SCORE_FONT.render("Press 3 for A* (Smartest)", True, WHITE)
 
-        screen.blit(opt1, (50, SCREEN_HEIGHT//2))
-        screen.blit(opt2, (50, SCREEN_HEIGHT//2 + 40))
-        screen.blit(opt3, (50, SCREEN_HEIGHT//2 + 80))
+        game_content_surface.blit(opt1, (50, GAME_CONTENT_HEIGHT//2))
+        game_content_surface.blit(opt2, (50, GAME_CONTENT_HEIGHT//2 + 40))
+        game_content_surface.blit(opt3, (50, GAME_CONTENT_HEIGHT//2 + 80))
 
     else:
-        # 使用新的繪圖函式 (內部有 cache)
+        # 使用新的繪圖函式
         draw_map()
 
-        # 正常狀態下繪製玩家
         if game_state != GAME_STATE_DEATH:
-            player.draw(screen)
+            player.draw(game_content_surface)
 
-        # 只有在非死亡狀態才繪製鬼魂
         if game_state != GAME_STATE_DEATH:
             for ghost in ghosts:
-                ghost.draw(screen)
+                ghost.draw(game_content_surface)
 
-        draw_logs(screen)
+        # 移除 draw_logs()，改在最後 Layout 階段繪製
 
-        # 繪製分數
-        # True: 開啟 anti-aliasing (反鋸齒)
+        # 繪製分數 (畫在最下方，因為 game_content_surface 正好包含了原本 HUD 的區域?
+        # 等等，MAP_HEIGHT 是 720。但原本 Score 畫在 MAP_HEIGHT + 10。
+        # 我們的 game_content_surface 只有 720 高。
+        # 所以分數應該要畫在地圖"上" 或是 我們需要稍微加大 game_content_surface?
+        # 檢查 setting: SCREEN_WIDTH=560, MAP_HEIGHT=720.
+        # 其實原本的設計 Score 是畫在 Log 區塊上方的 (y=730).
+        # 讓我們把 game_content_surface 加大一點點，包含 HUD 資訊 (但不包含 Log)
+        # 或者直接畫在地圖最上面?
+        # 為了美觀，我們將 Score 畫在地圖頂部 (如果有的話) 或底部覆蓋。
+        # 這裡決定：把 分數 畫在左上角 (5, 5)
         score_text = SCORE_FONT.render(
             f"SCORE: {int(player.score)}", True, WHITE)
-        screen.blit(score_text, (10, MAP_HEIGHT + 10))  # 稍微往下移到 Log 區塊上方
+        game_content_surface.blit(score_text, (10, 10))
 
-        # 繪製生命值 (圖示)
+        # 生命值畫在右上角
         lives_text = SCORE_FONT.render("LIVES:", True, WHITE)
-        screen.blit(lives_text, (SCREEN_WIDTH - 150, MAP_HEIGHT + 10))
+        game_content_surface.blit(lives_text, (SCREEN_WIDTH - 150, 10))
         for i in range(player.lives):
-            # 畫黃色小圓代表生命
             cx = SCREEN_WIDTH - 90 + i * 25
-            cy = MAP_HEIGHT + 18
-            pygame.draw.circle(screen, YELLOW, (cx, cy), 8)
-            # 簡單畫個嘴巴缺口 (用黑線蓋掉) - 或是之後用 Sprite
-            # 这里先画简单的
+            cy = 18
+            pygame.draw.circle(game_content_surface, YELLOW, (cx, cy), 8)
 
-        # 繪製中心文字 (開始、勝利、失敗)
-        center_pos = (SCREEN_WIDTH // 2, MAP_HEIGHT // 2)
+        # 繪製中心文字
+        center_pos = (SCREEN_WIDTH // 2, GAME_CONTENT_HEIGHT // 2)
         if game_state == GAME_STATE_START:
             start_text = WIN_FONT.render("READY!", True, YELLOW)
             hint_text = SCORE_FONT.render(
                 "Press ARROW KEYS to Start", True, WHITE)
-
             r1 = start_text.get_rect(center=center_pos)
             r2 = hint_text.get_rect(center=(center_pos[0], center_pos[1] + 40))
-
-            screen.blit(start_text, r1)
-            screen.blit(hint_text, r2)
-
-            # Reset Player Position visual bug fix (ensure it draws correctly on start)
+            game_content_surface.blit(start_text, r1)
+            game_content_surface.blit(hint_text, r2)
             if player:
-                player.draw(screen)
+                player.draw(game_content_surface)
 
         elif game_state == GAME_STATE_READY:
-            # Ready -> GO 動畫
+            # Ready -> GO 動畫 ... (略，邏輯不變，只需改 blit 目標)
             current_ticks = pygame.time.get_ticks()
             elapsed = current_ticks - ready_animation_start_time
-
-            if elapsed < 2000:  # 前 2 秒顯示 READY
+            if elapsed < 2000:
                 ready_text = WIN_FONT.render("READY!", True, YELLOW)
                 rr = ready_text.get_rect(center=center_pos)
-                screen.blit(ready_text, rr)
-            elif elapsed < 3000:  # 第 2-3 秒顯示 GO!
-                go_text = WIN_FONT.render("GO!", True, GREEN)  # 使用綠色
+                game_content_surface.blit(ready_text, rr)
+            elif elapsed < 3000:
+                go_text = WIN_FONT.render("GO!", True, GREEN)
                 gr = go_text.get_rect(center=center_pos)
-                screen.blit(go_text, gr)
+                game_content_surface.blit(go_text, gr)
             else:
-                # 時間到，正式開始
                 game_state = GAME_STATE_PLAYING
                 last_mode_switch_time = pygame.time.get_ticks()
                 log_message(
-                    f"Level {current_level} Start! Algo: {selected_algorithm}")
+                    f"Level {current_level} Start! Algo: {selected_algorithm}", YELLOW)
 
         elif game_state == GAME_STATE_DEATH:
-            # 死亡動畫狀態，只畫地圖和正在變化的 player
-            player.draw(screen)
+            player.draw(game_content_surface)
 
         elif game_state == GAME_STATE_PAUSED:
-            # 暫停狀態：保持原本畫面，疊加半透明黑底與選單
             draw_map()
-            player.draw(screen)
+            player.draw(game_content_surface)
             for ghost in ghosts:
-                ghost.draw(screen)
-            draw_logs(screen)
+                ghost.draw(game_content_surface)
 
-            # 繪製半透明遮罩
-            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+            overlay = pygame.Surface((SCREEN_WIDTH, GAME_CONTENT_HEIGHT))
             overlay.fill(BLACK)
-            overlay.set_alpha(128)  # 半透明 (0-255)
-            screen.blit(overlay, (0, 0))
+            overlay.set_alpha(128)
+            game_content_surface.blit(overlay, (0, 0))
 
-            # 繪製暫停文字與說明
             p_text = WIN_FONT.render("PAUSED", True, YELLOW)
             p_rect = p_text.get_rect(center=center_pos)
-            screen.blit(p_text, p_rect)
+            game_content_surface.blit(p_text, p_rect)
 
             resume_text = SCORE_FONT.render(
                 "Press P / ESC to Resume", True, WHITE)
             r_rect = resume_text.get_rect(
                 center=(center_pos[0], center_pos[1] + 40))
-            screen.blit(resume_text, r_rect)
+            game_content_surface.blit(resume_text, r_rect)
 
             quit_text = SCORE_FONT.render(
                 "Press Q to Quit to Menu", True, WHITE)
             q_rect = quit_text.get_rect(
                 center=(center_pos[0], center_pos[1] + 70))
-            screen.blit(quit_text, q_rect)
+            game_content_surface.blit(quit_text, q_rect)
 
         elif game_state == GAME_STATE_GAME_OVER:
             text = GAME_OVER_FONT.render("GAME OVER", True, RED)
             rect = text.get_rect(center=center_pos)
-            screen.blit(text, rect)
+            game_content_surface.blit(text, rect)
             restart_text = SCORE_FONT.render("Press R to Restart", True, WHITE)
             r_rect = restart_text.get_rect(
                 center=(center_pos[0], center_pos[1] + 50))
-            screen.blit(restart_text, r_rect)
+            game_content_surface.blit(restart_text, r_rect)
 
         elif game_state == GAME_STATE_WIN:
             text = WIN_FONT.render("YOU WIN!", True, YELLOW)
             rect = text.get_rect(center=center_pos)
-            screen.blit(text, rect)
+            game_content_surface.blit(text, rect)
             restart_text = SCORE_FONT.render(
                 "Press R to Play Again", True, WHITE)
             r_rect = restart_text.get_rect(
                 center=(center_pos[0], center_pos[1] + 50))
-            screen.blit(restart_text, r_rect)
+            game_content_surface.blit(restart_text, r_rect)
+
+    # -------------------------------------------------------------
+    # B. 響應式佈局 (Responsive Layout)
+    # -------------------------------------------------------------
+    display_w, display_h = display_surface.get_size()
+    display_surface.fill(BLACK)  # 清空底色
+
+    # 判斷長寬比
+    aspect_ratio = display_w / display_h
+
+    # 定義佈局閾值 (1.2 表示稍微寬一點的螢幕就切換)
+    if aspect_ratio > 1.2:
+        # --- 寬螢幕模式 (Wide Mode): 左圖右 Log ---
+
+        # 1. 遊戲畫面縮放至螢幕高度 (留一點邊距)
+        target_h = display_h
+        scale = target_h / GAME_CONTENT_HEIGHT
+        target_w = int(SCREEN_WIDTH * scale)
+
+        # 如果寬度超過螢幕一半太多，限制一下 (非必須，但保險)
+        if target_w > display_w * 0.7:
+            scale = (display_w * 0.7) / SCREEN_WIDTH
+            target_w = int(SCREEN_WIDTH * scale)
+            target_h = int(GAME_CONTENT_HEIGHT * scale)
+
+        scaled_game = pygame.transform.scale(
+            game_content_surface, (target_w, target_h))
+
+        # 居左顯示 (或置中偏左)
+        game_x = (display_w * 0.7 - target_w) // 2
+        if game_x < 0:
+            game_x = 0
+        game_y = (display_h - target_h) // 2
+
+        display_surface.blit(scaled_game, (game_x, game_y))
+
+        # 2. 右側區塊 (分為上下兩塊)
+        panel_x = int(display_w * 0.7)
+        panel_w = int(display_w * 0.28)
+
+        # 上半部: Controls (佔 320px)
+        controls_h = 320
+        draw_controls_on_surface(
+            display_surface, panel_x, 20, panel_w, controls_h)
+
+        # 下半部: Logs
+        log_y = 20 + controls_h + 20  # 留點間距
+        log_h = display_h - log_y - 20
+
+        # 繪製 Log
+        draw_logs_on_surface(display_surface, panel_x, log_y, panel_w, log_h)
+
+    else:
+        # --- 直立/標準模式 (Portrait Mode): 上圖下 Log ---
+
+        # 1. 計算可用高度分配
+        # 期望比例: Map 佔 80%, Log 佔 20%
+        # 先計算 Map 縮放
+        target_w = display_w
+        scale = target_w / SCREEN_WIDTH
+        target_h = int(GAME_CONTENT_HEIGHT * scale)
+
+        # 如果高度太高，超出螢幕，則以高度為準
+        if target_h > display_h * 0.8:
+            scale = (display_h * 0.8) / GAME_CONTENT_HEIGHT
+            target_h = int(GAME_CONTENT_HEIGHT * scale)
+            target_w = int(SCREEN_WIDTH * scale)
+
+        scaled_game = pygame.transform.scale(
+            game_content_surface, (target_w, target_h))
+
+        # 置中顯示
+        game_x = (display_w - target_w) // 2
+        game_y = 0
+        display_surface.blit(scaled_game, (game_x, game_y))
+
+        # 2. 底部 Log 區
+        log_x = 10
+        log_y = target_h + 10
+        log_w = display_w - 20
+        log_h = display_h - target_h - 20
+        if log_h < 100:
+            log_h = 100  # 最小高度保障
+
+        draw_logs_on_surface(display_surface, log_x, log_y, log_w, log_h)
 
     pygame.display.flip()
 
