@@ -372,6 +372,7 @@ class Game:
             anim_done = self.player.update_death_anim()
             if anim_done:
                 self.player.lives -= 1
+                self.player_lives = self.player.lives  # Sync for HUD
                 if self.player.lives > 0:
                     self.log_message(
                         f"Lives: {self.player.lives}, Resetting...", YELLOW)

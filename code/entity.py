@@ -33,7 +33,7 @@ class Entity:
         self.pixel_x = (self.grid_x * TILE_SIZE) + (TILE_SIZE // 2)
         self.pixel_y = (self.grid_y * TILE_SIZE) + (TILE_SIZE // 2)
 
-    def is_centered(self):
+    def is_centered(self, custom_threshold=None):
         """ 判斷是否位於網格中心 (容許小誤差) """
         # 注意: 如果改用 dt 移動，這裡的誤差容許值可能要調整，或者直接用距離判斷
         dist_x = abs((self.pixel_x - (TILE_SIZE // 2)) % TILE_SIZE)
@@ -41,7 +41,10 @@ class Entity:
 
         # 只要距離中心夠近 (小於一次移動的量)，就視為置中
         # 為了安全起見，這裡可以設一個固定的閾值，例如 1.5 像素
-        threshold = self.speed if self.speed > 0 else 1.0
+        if custom_threshold is not None:
+            threshold = custom_threshold
+        else:
+            threshold = self.speed if self.speed > 0 else 1.0
 
         return dist_x < threshold and dist_y < threshold
 

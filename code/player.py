@@ -131,8 +131,14 @@ class Player(Entity):
             elif self.direction == (0, -1):
                 self.rotation_angle = 270
 
+        # Calculate move_step to prevent tunneling
+        move_step = self.speed
+        if dt_seconds is not None:
+            move_step = self.speed * 60 * dt_seconds
+
         # 1. 檢查是否在格子中心 (用於轉彎判定)
-        centered = self.is_centered()
+        # Use move_step as threshold to catch if we are about to skip the center
+        centered = self.is_centered(custom_threshold=max(move_step * 1.5, 1.5))
 
         # 2. 嘗試轉彎 (如果玩家有按下方向鍵)
         if self.next_direction != (0, 0):
