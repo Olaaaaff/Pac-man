@@ -6,31 +6,56 @@ import math
 
 
 class Player(Entity):
+    """
+    Player 類別代表玩家控制的小精靈 (Pac-Man)。
+
+    負責處理:
+    1. 使用者輸入 (上下左右)
+    2. 移動與碰撞偵測 (不能穿牆)
+    3. 動畫 (嘴巴開合、旋轉、死亡動畫)
+    4. 吃豆子判定
+    """
+
     def __init__(self, grid_x, grid_y, speed=SPEED):
+        """
+        初始化玩家物件。
+
+        參數:
+            grid_x, grid_y: 初始網格位置
+            speed: 移動速度
+        """
         super().__init__(grid_x, grid_y, speed)
         self.radius = TILE_SIZE // 2 - 2
-        self.next_direction = (0, 0)
+        self.next_direction = (0, 0)  # 預存下一個想要轉彎的方向
         self.score = 0
         self.lives = MAX_LIVES
 
-        # 動畫變數
-        self.current_mouth_angle = 45  # 嘴巴張開角度 (0~45)
-        self.anim_speed = 5  # 開合速度
-        self.mouth_opening = True  # 是否正在張開
-        self.rotation_angle = 0  # 身體旋轉角度
+        # --- 動畫狀態變數 ---
+        self.current_mouth_angle = 45  # 嘴巴目前的張開角度 (0~45度)
+        self.anim_speed = 5            # 嘴巴開合的速度
+        self.mouth_opening = True      # True=張開中, False=閉合中
+        self.rotation_angle = 0        # 身體旋轉角度 (配合移動方向)
 
-        # 死亡動畫變數
+        # --- 死亡動畫變數 ---
         self.is_dying = False
         self.death_anim_angle = 0
-        self.death_anim_scale = 1.0
+        self.death_anim_scale = 1.0    # 縮放比例 (1.0 -> 0.0)
 
     def start_death_anim(self):
+        """ 開始播放死亡動畫 (被鬼抓到時呼叫) """
         self.is_dying = True
         self.death_anim_angle = 0
         self.death_anim_scale = 1.0
 
     def update_death_anim(self):
-        """ 更新死亡動畫: 旋轉並縮小 """
+        """ 
+        更新死亡動畫狀態。
+        每幀呼叫，讓小精靈旋轉並縮小直到消失。
+
+        回傳:
+            True: 動畫結束
+            False: 動畫進行中
+        """
         if self.is_dying:
             self.death_anim_angle += 10
             self.death_anim_scale -= 0.02
@@ -40,6 +65,11 @@ class Player(Entity):
         return False
 
     def draw(self, surface):
+        """
+        繪製小精靈。
+        如果是普通狀態: 畫黃色圓形 + 黑色三角形(模擬嘴巴)。
+        如果是死亡狀態: 畫逐漸縮小的黃色圓形。
+        """
         if self.is_dying:
             # 死亡動畫繪製: 旋轉 + 縮小
             current_radius = int(self.radius * self.death_anim_scale)
@@ -91,6 +121,11 @@ class Player(Entity):
             surface, BLACK, [center, (p2_x, p2_y), (p3_x, p3_y)])
 
     def handle_input(self, event):
+        """
+        處理鍵盤輸入。
+        將使用者的按鍵轉換為 'next_direction' (預存方向)。
+        不會直接改變 direction，而是在 update 中檢查該方向是否可走才轉彎。
+        """
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_UP:
                 self.next_direction = (0, -1)
@@ -103,9 +138,17 @@ class Player(Entity):
 
     def update(self, game_map, dt=0):
         """ 
-        更新玩家狀態
-        dt: delta time in milliseconds (如果有的話)
-        回傳: 事件字串 (ATE_PELLET, etc) 或 None
+        遊戲迴圈的更新函數。
+        1. 更新嘴巴開合動畫
+        2. 處理移動與物理 (嘗試轉彎、檢查撞牆)
+        3. 檢查是否吃到豆子或能量球
+
+        參數:
+            game_map: 遊戲地圖資料 (二維陣列)
+            dt: Delta time (毫秒)，若為 0 則使用預設速度
+
+        回傳: 
+            觸發的事件 (如 EVENT_ATE_PELLET) 或 None
         """
         dt_seconds = dt / 1000.0 if dt > 0 else None
 

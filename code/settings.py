@@ -1,4 +1,8 @@
 # settings.py
+"""
+此檔案包含遊戲的所有全域常數與設定。
+包括: 螢幕大小、顏色定義、遊戲參數(速度/時間)、地圖資料以及輔助函式。
+"""
 import pygame
 
 # * 遊戲架構有關常數
@@ -36,6 +40,10 @@ HIGH_SCORE_FILE = "high_score.txt"
 
 
 def load_high_score():
+    """ 
+    從檔案讀取最高分。
+    如果檔案不存在或格式錯誤，回傳 0。
+    """
     try:
         with open(HIGH_SCORE_FILE, "r") as f:
             return int(f.read())
@@ -44,6 +52,12 @@ def load_high_score():
 
 
 def save_high_score(score):
+    """ 
+    儲存最高分到檔案。
+
+    參數:
+        score: 要儲存的分數整數
+    """
     try:
         with open(HIGH_SCORE_FILE, "w") as f:
             f.write(str(int(score)))
@@ -170,7 +184,14 @@ GAME_MAP = [list(row) for row in MAP_STRINGS]
 def is_wall(game_map, x, y):
     """
     檢查給定座標是否為牆壁。
-    如果座標超出地圖範圍 (例如左右隧道)，回傳 False (表示可通行)。
+
+    參數:
+        game_map: 二維地圖陣列
+        x, y: 網格座標 (Grid Coordinates)
+
+    回傳:
+        True: 是牆壁
+        False: 可通行 (包含空地、豆子、或超出地圖範圍的隧道)
     """
     # 檢查是否在地圖範圍內
     if 0 <= y < len(game_map):

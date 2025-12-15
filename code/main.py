@@ -6,7 +6,17 @@ from ghost import Ghost
 
 
 class Game:
+    """
+    Game 類別是遊戲的主控制器。
+    負責：
+    1. 初始化視窗與 Pygame。
+    2. 管理遊戲狀態 (Menu, Playing, Pause, Game Over)。
+    3. 遊戲主迴圈 (Handle Input -> Update -> Draw)。
+    4. 管理所有實體 (Player, Ghosts) 與地圖。
+    """
+
     def __init__(self):
+        """ 初始化遊戲系統與變數 """
         # Initialize Pygame
         pygame.init()
         pygame.font.init()
@@ -90,7 +100,13 @@ class Game:
         self.log_message(f"Game Loaded! Press ARROW KEYS to start...", GREEN)
 
     def log_message(self, message, color=WHITE):
-        """ Add a message to the in-game log """
+        """ 
+        新增訊息到遊戲內的 Log 系統 (顯示在視窗側邊或 console)。
+
+        參數:
+            message: 訊息內容
+            color: 訊息顏色
+        """
         ticks = pygame.time.get_ticks() // 1000
         formatted_msg = f"[{ticks}s] {message}"
         print(formatted_msg)
@@ -99,7 +115,16 @@ class Game:
             self.game_logs.pop(0)
 
     def get_layout_metrics(self):
-        """ Calculate scale and offsets for centering the game content """
+        """ 
+        計算遊戲畫面的佈局指標 (Scale, Offset)。
+        用於保持長寬比並置中顯示 (Letterboxing)。
+
+        回傳:
+            scale: 縮放比例
+            offset_x, offset_y: 畫面偏移量
+            target_w, target_h: 實際遊戲畫面大小
+            is_wide: 是否為寬螢幕模式 (如果是，會顯示 Log 面板)
+        """
         display_w, display_h = self.display_surface.get_size()
 
         # Decide if we are in "Wide Mode" (Sidebar for logs)
@@ -130,7 +155,10 @@ class Game:
         return scale, offset_x, offset_y, target_w, target_h, is_wide
 
     def generate_background(self):
-        """ Generate static wall background with connected lines """
+        """ 
+        產生靜態背景 (牆壁)。
+        繪製藍色的線條連接相鄰的牆壁磚塊，形成迷宮。
+        """
         # Matches Map Size only
         self.background_surface = pygame.Surface((SCREEN_WIDTH, MAP_HEIGHT))
         self.background_surface.fill(BLACK)
@@ -180,7 +208,13 @@ class Game:
                                      (rect_x + TILE_SIZE, rect_y + TILE_SIZE//2), 2)
 
     def init_level(self, new_level=False):
-        """ Reset game state for a level or restart """
+        """ 
+        初始化關卡狀態。
+
+        參數:
+            new_level: 是否為新的一關 (重置地圖豆子)。
+                       如果為 False，通常只是玩家死亡後重置位置 (豆子保留)。
+        """
         # Reset Map
         if new_level:
             # Deep copy from settings.MAP_STRINGS
@@ -246,6 +280,7 @@ class Game:
         self.last_mode_switch_time = pygame.time.get_ticks()
 
     def reset_game(self):
+        """ 重置整個遊戲回到主選單 """
         self.player_lives = MAX_LIVES
         self.current_level = 1
         self.game_state = GAME_STATE_MENU
@@ -253,6 +288,10 @@ class Game:
         self.log_message("Game Reset to Menu", YELLOW)
 
     def handle_input(self):
+        """ 
+        全域輸入處理。
+        根據目前的 game_state 分派輸入給對應的邏輯。
+        """
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
@@ -356,6 +395,10 @@ class Game:
                         self.reset_game()
 
     def update(self, dt):
+        """
+        遊戲主邏輯更新。
+        包含: 鬼魂行為、玩家移動、碰撞偵測、水果生成、勝利判定等。
+        """
         current_time = pygame.time.get_ticks()
 
         # Ready Animation Logic (Moved from draw)
@@ -518,7 +561,7 @@ class Game:
                         self.player.start_death_anim()
 
     def draw_map_entities(self):
-        """ Draw everything that belongs to the map layer """
+        """ 繪製地圖層的所有物件 (背景、豆子、水果、玩家、鬼魂) """
         # Clear map surface
         self.map_surface.fill(BLACK)
 
@@ -639,6 +682,13 @@ class Game:
             self.menu_buttons.append((rect, algo))
 
     def draw(self):
+        """ 
+        主繪圖函數。
+        1. 清除畫面。
+        2. 根據狀態繪製內容 (Menu 或 Game)。
+        3. 處理畫面縮放與置中。
+        4. 繪製側邊欄 (Logs)。
+        """
         # 1. Clear Full Content
         self.game_content_surface.fill(BLACK)
 

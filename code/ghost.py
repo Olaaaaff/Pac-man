@@ -8,8 +8,28 @@ from queue import PriorityQueue
 
 
 class Ghost(Entity):
+    """
+    Ghost 類別代表遊戲中的鬼魂敵人。
+    負責處理鬼魂的 AI 行為運算 (A*, BFS, Greedy)、狀態機 (追蹤、散開、驚嚇、被吃、回家)、
+    以及繪製鬼魂的動畫 (身體、眼睛、腳)。
+    """
+
     def __init__(self, grid_x, grid_y, color, ai_mode, speed=SPEED, scatter_point=None, in_house=False, delay=0, on_log=None, algorithm=ALGO_ASTAR):
-        # 初始化 Entity
+        """
+        初始化鬼魂。
+
+        參數:
+            grid_x, grid_y: 初始網格座標
+            color: 鬼魂顏色
+            ai_mode: 初始 AI 模式 (如 MODE_SCATTER, MODE_CHASE 等)
+            speed: 移動速度
+            scatter_point: 散開模式下的目標點 (通常是地圖角落)
+            in_house: 是否在鬼屋內開始
+            delay: 在鬼屋內的等待時間 (毫秒)
+            on_log: 用於輸出除錯訊息的 callback 函數
+            algorithm: 使用的路徑搜尋演算法 (ALGO_ASTAR, ALGO_BFS, ALGO_GREEDY)
+        """
+        # 初始化 Entity 父類別
         super().__init__(grid_x, grid_y, speed)
 
         self.home_pos = (grid_x, grid_y)
@@ -44,6 +64,13 @@ class Ghost(Entity):
         self.on_log = on_log
 
     def draw(self, surface, flash_white=False):
+        """
+        繪製鬼魂到畫面上。
+
+        參數:
+            surface: 繪製的目標圖層
+            flash_white: 驚嚇模式快結束時的閃爍效果
+        """
         if self.is_eaten:
             # 只畫眼睛
             self._draw_eyes(surface)
@@ -115,6 +142,10 @@ class Ghost(Entity):
             right_eye_pos[0] + look_x), int(right_eye_pos[1] + look_y)), pupil_radius)
 
     def eat(self):
+        """
+        當鬼魂被小精靈吃到時呼叫。
+        將狀態轉為 '被吃掉' (雙眼模式)，並快速回到鬼屋。
+        """
         if self.on_log:
             self.on_log(
                 f"[{self.ai_mode}] Ghost eaten! Returning home.", GREY)
@@ -139,6 +170,10 @@ class Ghost(Entity):
         self.direction = (0, -1)
 
     def start_frightened(self):
+        """
+        進入驚嚇模式 (變藍色，速度變慢，隨機亂跑)。
+        通常是玩家吃到大顆能量球時觸發。
+        """
         if self.is_eaten:
             return
         if self.current_ai_mode not in [MODE_GO_HOME, MODE_EXIT_HOUSE, MODE_WAITING]:
@@ -161,6 +196,10 @@ class Ghost(Entity):
                         f"[{self.ai_mode}] Ghost unfrightened.", self.color)
 
     def get_neighbors(self, node):
+        """
+        取得目前位置周圍可走的鄰居節點。
+        會檢查牆壁、地圖邊界以及鬼屋門的進出權限。
+        """
         x, y = node
         neighbors = []
         map_width = len(GAME_MAP[0])
@@ -186,6 +225,16 @@ class Ghost(Entity):
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
     def get_target_position(self, player, blinky_pos=None):
+        """
+        根據目前的 AI 模式決定目標點 (Target Tile)。
+
+        模式:
+            MODE_GO_HOME: 回鬼屋
+            MODE_EXIT_HOUSE: 走出鬼屋
+            MODE_FRIGHTENED: 隨機漫步
+            MODE_SCATTER: 走向固定的散開點 (角落)
+            AI_CHASE_*: 根據不同鬼魂的個性 (Blinky, Pinky, Inky, Clyde) 追蹤玩家
+        """
         target = (self.grid_x, self.grid_y)
 
         if self.current_ai_mode == MODE_GO_HOME:
@@ -255,6 +304,10 @@ class Ghost(Entity):
     # 簡化：為節省篇幅，這裡我只放由 A* 代表，其他可以沿用
 
     def algo_greedy(self, start, target):
+        """
+        Greedy Best-First Search (貪婪演算法)
+        只看眼前哪一步離目標最近，不考慮障礙物後的代價，容易走進死路。
+        """
         neighbors = self.get_neighbors(start)
         # 禁止回頭邏輯 (Pac-Man standard)
         reverse_pos = (start[0] - self.direction[0],
@@ -267,6 +320,10 @@ class Ghost(Entity):
         return min(valid_neighbors, key=lambda n: self.heuristic(n, target))
 
     def algo_bfs(self, start, target):
+        """
+        Breadth-First Search (廣度優先搜尋)
+        地毯式搜索，保證找到最短路徑，但效能較差，搜尋範圍會擴散得很大。
+        """
         queue = [start]
         came_from = {start: None}
         while queue:
@@ -280,6 +337,11 @@ class Ghost(Entity):
         return self.reconstruct_next_step(came_from, start, target)
 
     def algo_astar(self, start, target):
+        """
+        A* Algorithm (A Star 演算法)
+        結合了 Dijkstra (實際代價) 與 Greedy (預估代價 Heuristic) 的優點。
+        是目前遊戲中最常用的路徑搜尋演算法，效能好且能找到最短路徑。
+        """
         open_set = PriorityQueue()
         open_set.put((0, start))
         came_from = {start: None}
@@ -355,6 +417,12 @@ class Ghost(Entity):
             self.direction = (0, 0.5)
 
     def update(self, game_map, player, dt, global_ghost_mode, blinky_tile=None):
+        """
+        每幀更新鬼魂的狀態與位置。
+        1. 處理狀態切換 (散開/追蹤)。
+        2. 執行路徑演算法決定下一步方向。
+        3. 移動實體位置。
+        """
         dt_seconds = dt / 1000.0 if dt > 0 else 0
 
         # 狀態切換邏輯
