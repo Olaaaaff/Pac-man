@@ -26,7 +26,7 @@ class Game:
         self.window_height = int(SCREEN_HEIGHT * 1.0)
         self.display_surface = pygame.display.set_mode(
             (self.window_width, self.window_height), pygame.RESIZABLE)
-        pygame.display.set_caption("Pygame Pac-Man (F11: Fullscreen)")
+        pygame.display.set_caption("Pygame Pac-Man")
 
         # UI Layout Constants
         self.HEADER_HEIGHT = 40  # Space for Score/Lives at the top
@@ -371,7 +371,7 @@ class Game:
                         self.game_state = GAME_STATE_PAUSED
                         self.log_message("Game Paused", YELLOW)
 
-                    # AI Visual Mode Switching
+                    # Algorithm Visual Mode Switching
                     if self.selected_algorithm == ALGO_VISUAL:
                         new_algo = None
                         if event.key == pygame.K_1:
@@ -655,7 +655,7 @@ class Game:
 
     def draw_menu_ui(self, surface):
         # Menu is drawn on full content surface
-        title_surf = WIN_FONT.render("PAC-MAN AI", True, YELLOW)
+        title_surf = WIN_FONT.render("PAC-MAN", True, YELLOW)
         surface.blit(title_surf, (SCREEN_WIDTH // 2 -
                      title_surf.get_width() // 2, 100))
 
@@ -669,7 +669,7 @@ class Game:
             ("1. GREEDY", ALGO_GREEDY, 250, CYAN),
             ("2. BFS", ALGO_BFS, 320, ORANGE),
             ("3. A* (A-Star)", ALGO_ASTAR, 390, PINK),
-            ("4. AI VISUAL", ALGO_VISUAL, 460, GREEN)
+            ("4. Algorithm VISUAL", ALGO_VISUAL, 460, GREEN)
         ]
 
         self.menu_buttons = []
@@ -854,7 +854,7 @@ class Game:
             ("F11", "Fullscreen"),
             ("Q", "Quit (in Menu/Pause)"),
             ("R", "Restart (End Game)"),
-            ("ENTER/SPACE", "Start Game"),
+            ("1,2,3", "Select algorithm (in Algorithm VISUAL mode)"),
         ]
 
         curr_y = y + 40
